@@ -7,6 +7,7 @@ class CompilerError(Exception):
     as well as a formatted message.
     """
     def __init__(self, line, col, fmt, *args, **kwargs):
+        super().__init__()
         self.line = line
         self.column = col
 

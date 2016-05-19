@@ -39,7 +39,7 @@ def print_list(chunk):
         buffer += '('
         for elt in chunk:
             print_list(elt)
-            
+
         buffer += ')'
     else:
         assert False
@@ -59,7 +59,7 @@ class Lexer:
         self.line = 1
         self.column = 0
         self.stored_chars = deque([])
-    
+
     def read_word(self):
         """
         Reads in a word of characters, and distinguishes integers, decimals,
@@ -147,8 +147,6 @@ class Lexer:
         """
         Reads in a comment from the input stream.
         """
-        start_line, start_column = self.line, self.column + 1
-        buffer = ''
         while True:
             char = self.get()
             if char == '\n':
@@ -156,8 +154,6 @@ class Lexer:
             else:
                 if char is None:
                     break
-
-                buffer += char
 
     def lex(self):
         """
