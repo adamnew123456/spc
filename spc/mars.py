@@ -208,3 +208,25 @@ class MarsBackend:
         Writes an instruction to the output stream.
         """
         print(fmt, *args, **kwargs, file=self.output_stream)
+
+    def handle_begin_program(self):
+        """
+        Initializes the backend for outputting a new program.
+        """
+        self.in_function = False
+
+        # Where to jump to, to exit the current function. Having a single exit
+        # point allows the code to be smaller, by not duplicating stack handling
+        # logic
+        self.func_exit_label = None
+
+        # These are basically state flags, which ensure  that the program is
+        # valid by allowing us to detect if there are duplicate declaration
+        # blocks (which aren't allowed by the language)
+        self.read_func_decls = False
+        self.read_top_decls = False
+
+    def handle_end_program(self):
+        """
+        Does nothing - nothing is required after writing the final function.
+        """
