@@ -10,6 +10,25 @@ from . import types
 
 LOGGER = logging.getLogger('spc.mars')
 
+# Note that _ is not included, to avoid creating ambiguities - _ is always
+# encoded as '_95'
+LABEL_CHARS = string.ascii_letters + string.digits
+def mangle_labels(label):
+    """
+    Converts a label into a form which MARS accepts.
+
+    This outputs labels which start with 'L_' and contain
+    only alphanumerics and underscores.
+    """
+    chunks = []
+    for char in label:
+        if char not in LABEL_CHARS:
+            char = '_' + str(ord(char)) + '_'
+        
+        chunks.append(char)
+
+    return 'L_' + ''.join(chunks)
+
 class SymbolTable:
     """
     A lookup table which binds variables in a nested way, where access goes
@@ -209,6 +228,157 @@ class MarsBackend:
         """
         print(fmt, *args, **kwargs, file=self.output_stream)
 
+    def _resolve_if_type_name(self, name):
+        """
+        Resolves a type name into a concrete type.
+        """
+        # Avoid crashing due to deep type searches
+        MAX_DEPTH = 25
+        start_name = name
+
+        try:
+            current_depth = 0
+            while isinstance(name, types.TypeName):
+                current_depth += 1
+                name = self.current_context.type_defns[name.name]
+
+                if current_depth > MAX_DEPTH:
+                    raise CompilerError(0, 0, 
+                        'Type aliases too deep, when resolving "{}"', start_name.name)
+
+            return name
+        except KeyError:
+            raise CompilerError(0, 0, 'Invalid type "{}"', name)
+
+    def _type_alignment(self, type_obj):
+        """
+        Returns alignment of the given type (1 for byte, 4 for word, etc.)
+        """
+        type_obj = self._resolve_if_type_name(type_obj)
+
+        if type_obj is types.Integer:
+            return 4
+        elif type_obj is types.Byte:
+            return 1
+        elif isinstance(type_obj, (types.PointerTo, types.FunctionPointer)):
+            return 4
+        elif isinstance(type_obj, types.ArrayOf):
+            return self._type_alignment(type_obj.type)
+        elif isinstance(type_obj, types.Struct):
+            # The alignment only concerns the first element of the struct - 
+            # the struct's internal alignment doesn't come into play
+            struct_types = type_obj.fields.values()
+            return self._type_alignment(next(struct_types))
+
+    def _field_offset(self, struct_type, field_name):
+        """
+        Computes the offset of a specific field in the given structure.
+        """
+        if field_name not in struct_type:
+            raise KeyError('Structure {} does not have field {}'.format(struct_type, field_name))
+
+        offset = 0
+        for field in type_obj.fields:
+            if field_name == field:
+                break
+
+            field_type = self._resolve_if_type_name(type_obj.fields[field])
+            offset = types.align_address(offset, field_alignment)
+            offset += self._type_size(field_type, depth + 1)
+
+        return offset
+
+    def _array_offset(self, array_type, index):
+        """
+        Computes the offset of the given index, from the first element, taking
+        into account the size and alignment of internal elements.
+        """
+        base_size = self._type_size(array_type.type)
+        aligned_size = types.align_address(base_size, alignment)
+        return aligned_size * index
+
+    def _type_size(self, type_obj, depth=0):
+        """
+        Returns the size of a type object in bytes.
+        """
+        MAX_DEPTH = 100
+
+        if depth >= MAX_DEPTH:
+            raise CompilerError(0, 0, 
+                "Type nested too deeply - potential self-referential type")
+
+        type_obj = self._resolve_if_type_name(type_obj)
+
+        if type_obj is types.Integer:
+            return 4
+        elif type_obj is types.Byte:
+            return 1
+        elif isinstance(type_obj, (types.PointerTo, types.FunctionPointer)):
+            return 4
+        elif isinstance(type_obj, types.ArrayOf):
+            # To avoid wasting space on the last element, this pads all the
+            # elements but the last
+            base_size = self._type_size(type_obj.type)
+            return self._array_offset(type_obj, types_obj.count - 1) + base_size
+        elif isinstance(type_obj, types.Struct):
+            last_field = list(type_obj.fields)[-1]
+            last_field_type = type_obj.fields[last_field]
+
+            last_field_offset = self._field_offset(type_obj, last_field)
+            return last_field_offset + self._type_size(last_field_type)
+
+    def _check_valid_types(self, type_objs):
+        """
+        Ensures that all the types given are well-defined - i.e. that all their
+        constituent parts reference other existing types.
+
+        Note that this does not uncover any other nastiness, like recursive
+        types.
+        """
+        # Recursive types are uncovered later, when actually computing the size
+        # of the types - obviously, computing the size of a type which includes
+        # itself as a member is going to fail
+        to_check = set(type_objs)
+        checked = set()
+
+        def check(type_obj):
+            "Schedules the type to be checked if it hasn't been yet"
+            if type_obj not in checked:
+                to_check.add(type_obj)
+
+        while to_check:
+            type_obj = to_check.remove()
+            checked.add(type_obj)
+
+            type_obj = self._resolve_if_type_name(type_obj)
+
+            if isinstance(type_obj, (types.PointerTo, types.ArrayOf)):
+                check(type_obj.type)
+            elif isinstance(type_obj, types.Struct):
+                for field_type in type_obj.fields.values():
+                    check(field_type)
+            elif isinstance(type_obj, (types.FunctionDecl, types.FunctionPointer)):
+                check(type_obj.return_type)
+                if isinstance(type_obj.return_type, types.Struct):
+                    # There's no situation where you couldn't rewrite:
+                    #
+                    #    (function structure-tupe ...)
+                    #
+                    # As:
+                    #
+                    #    (function byte (pointer-to structure-type) ...)
+                    #
+                    # And simply have the caller provide a structure to 
+                    # pre-populate. By doing this, we can avoid having to deal
+                    # with the obvious question "where do we put this thing?"
+                    raise CompilerError(0, 0, 'Cannot return struct from function')
+
+                for param in type_obj.params:
+                    check(type_obj.params)
+
+            # Anything not in those categories is a value type, and is valid
+            # because it doesn't reference any other types
+
     def handle_begin_program(self):
         """
         Initializes the backend for outputting a new program.
@@ -230,3 +400,88 @@ class MarsBackend:
         """
         Does nothing - nothing is required after writing the final function.
         """
+
+    def handle_decl_block_start(self):
+        """
+        Handles the start of a declaration block.
+
+        For the top-level declaration block, this writes out the .data 
+        section for the main program. Function-level declaration blocks
+        don't do anything.
+        """
+        if not self.in_function:
+            if self.read_top_decls:
+                raise CompilerError(0, 0, 'Cannot have >1 top-level declaration blocks')
+
+            self.read_top_decls = True
+
+            self._write_instr('.data')
+        else:
+            if self.read_func_decls:
+                raise CompilerError(0, 0, 'Cannot have >1 function declaration blocks')
+
+            self.read_func_decls = True
+
+    def handle_decl(self, name, decl_type):
+        """
+        Handles declarations inside of a declaration block.
+
+        At the top level, this will either allocate space in the .data section,
+        or just add information to the global context. In a function, this will
+        either reserve space on the stack, or just add information to the local
+        context.
+        """
+        was_type_name = isinstance(name, types.TypeName)
+        decl_type = self._resolve_if_type_name(decl_type)
+
+        if was_type_name or isinstance(decl_type, types.RAW_TYPES):
+            self.current_context.value_defns[name] = types.decay_if_array(decl_type)
+
+            if self.in_function:
+                # Raw types have to be allocated stack space
+                type_size = self._type_size(decl_type)
+                alignment = self._type_alignment(decl_type)
+                self.current_context.func_stack.add_local(name, type_size, alignment)
+            else:
+                # Raw types have to be allocated space inside of .data 
+                # and given a label
+                label = mangle_label(name)
+                self._write_instr('{}:', label)
+
+                size = self._type_size(decl_type)
+                self._write_instr('    .space {}', size)
+        elif isinstance(decl_type, types.Struct):
+            # Structure types are treated as structure definitions, which 
+            # bind a type definition
+            self.current_context.type_defns[name] = decl_type
+        elif isinstance(decl_type, types.FunctionDecl):
+            # Function declarations signify a function that is defined 
+            # somewhere
+            if self.in_function:
+                raise CompilerError(0, 0, 'Cannot declare nested functions')
+
+            self.current_context.value_defns[name] = decl_type
+        elif isinstance(decl_type, types.AliasDef):
+            # Alias definitions bind an existing type to a new name
+            self.current_context.type_defns[name] = decl_type.type
+
+    def handle_decl_block_end(self):
+        """
+        Handles the end of a declaration block.
+
+        At the top level, this starts the .text section and writes a jump to
+        main. In a function, this adds enough space to the stack frame for
+        the local variables.
+        """
+        # Make sure that all the types we just defined don't reference
+        # any types that don't exist, or do any other nasty things
+        for symbol_tbl in self.current_context:
+            # (Not all things in the context are symbol tables, but most are)
+            if isinstance(symbol_tbl, SymbolTable):
+                self._check_valid_types(symbol_tbl.bindings.values())
+
+        if not self.in_function:
+            self._write_instr('.text')
+            self._write_instr('    j main')
+        else:
+            self._write_instr('    addi $sp, -{}', self.current_context.func_stack.locals_size())
