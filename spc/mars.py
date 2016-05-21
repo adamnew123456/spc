@@ -171,3 +171,40 @@ class FunctionStack:
         name was bound to one of the first four parameters)
         """
         return self.vars[name]
+
+class MarsBackend:
+    """
+    Emits MIPS assembly code compatible with the MARS simulator.
+    """
+    def __init__(self, output):
+        self.output_stream = output
+
+        program_vals = SymbolTable(BUILTIN_FUNCTIONS, is_global=True)
+        program_types = SymbolTable(BUILTIN_TYPES, is_global=True)
+
+        self.parent_contexts = []
+        self.current_context = Context(program_vals, program_types, program_funcs, None)
+
+    def _push_context(self):
+        """
+        Pushes a new binding context.
+        """
+        old_context = self.current_context
+        self.parent_contexts.append(old_context)
+
+        self.current_context = Context(
+                SymbolTable(old_context.value_defns),
+                SymbolTable(old_context.type_defns),
+                FunctionStack())
+
+    def _pop_context(self):
+        """
+        Loads the previous binding context.
+        """
+        self.current_context = self.parent_contexts.pop()
+
+    def _write_instr(self, fmt, *args, **kwargs):
+        """
+        Writes an instruction to the output stream.
+        """
+        print(fmt, *args, **kwargs, file=self.output_stream)
