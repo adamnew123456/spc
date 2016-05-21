@@ -3,6 +3,7 @@ MARS compiler backend - responsible for taking program events emitted by the
 driver and converting them into code.
 """
 from collections import namedtuple
+import itertools
 import logging
 import string
 
@@ -11,6 +12,9 @@ from . import expressions
 from . import types
 
 LOGGER = logging.getLogger('spc.mars')
+
+# An infinite stream of fresh labels for the backend
+LABEL_MAKER = ('LM_{}'.format(value) for value in itertools.count(1))
 
 # Note that _ is not included, to avoid creating ambiguities - _ is always
 # encoded as '_95'
@@ -487,3 +491,60 @@ class MarsBackend:
             self._write_instr('    j main')
         else:
             self._write_instr('    addi $sp, -{}', self.current_context.func_stack.locals_size())
+
+    def handle_func_def_start(self, name, params):
+        """
+        Handles the beginning of a function.
+        """
+        self.in_function = True
+        self.func_exit_label = next(LABEL_MAKER)
+
+        try:
+            func_defn = self.current_context.func_defns[name]
+        except KeyError as exn:
+            raise CompilerError(0, 0, 'Undefined function "{}"', name)
+
+        self._push_context()
+
+        for param, param_type in zip(self.params, func_defn.params):
+            param_type = self._resolve_if_type_name(param_type)
+
+            type_size = self._type_size(param_type)
+            alignment = self._type_alignment(type_size)
+            self.current_context.func_stack.add_param(param, type_size, alignment)
+
+            self.current_context.value_defns[param] = param_type
+
+        func_label = mangle_label(name)
+        self._write_instr('{}:', func_label)
+
+        # Setup the function's stack frame before adding any other code
+        self._write_instr('    sw $fp, -4($sp)')
+        self._write_instr('    sw $ra, -8($sp)')
+        self._write_instr('    addi $fp, $sp, -8')
+
+        self._write_instr('    sw $fp, -4($sp)')
+        self._write_instr('    sw $ra, -8($sp)')
+
+        self._write_instr('    addi $fp, $sp, 0')
+        self._write_instr('    addi $sp, $sp, -8')
+
+    def handle_func_def_end(self):
+        """
+        Handles the end of the function definition.
+
+        Writes out the end label and the code for doing a function return.
+        """
+        self._write_instr('{}:', self.func_exit_label)
+
+        frame_size = self.current_context.func_stack.locals_size() + 8
+        self._write_instr('    addi $sp, $sp, {}', frame_size)
+        self._write_isntr('    lw $fp, -4($sp)')
+        self._write_instr('    lw $ra, -8($sp)')
+        self._write_instr('    jr $ra')
+
+        self._pop_context()
+
+        self.in_function = False
+        self.func_exit_label = None
+
