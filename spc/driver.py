@@ -83,19 +83,9 @@ class Backend:
         Called after handling all of the statements inside of a block.
         """
 
-    def handle_set(self, identifier, expression):
+    def handle_set(self, assignable, expression):
         """
-        Called after reading a (set IDENTIFIER EXPRESSION) statement.
-        """
-
-    def handle_array_set(self, identifier, index, expression):
-        """
-        Called after reading an (aset IDENTIFIER EXPRESSION EXPRESSION) statement.
-        """
-
-    def handle_field_set(self, identifier, fields, expression):
-        """
-        Called after reading an (sset IDENTIFIER IDENTIFIER+ EXPRESSION) statement.
+        Called after reading a (set ASSIGNABLE EXPRESSION) statement.
         """
 
     def handle_if(self, cond):
@@ -334,8 +324,8 @@ class Driver:
             (cast TYPE EXPRESSION)
             (func IDENTIFIER)
 
-            (aget EXPRESSION EXPRESSION)
-            (sget EXPRESSION IDENTIFIER+)
+            (array EXPRESSION EXPRESSION)
+            (field EXPRESSION IDENTIFIER+)
 
             (+ EXPRESSION EXPRESSION)
             (- EXPRESSION EXPRESSION)
@@ -416,18 +406,18 @@ class Driver:
                         'func must be of the from (func IDENT)')
 
                 return expressions.Func(expr[1].content)
-            elif expr[0].content == 'aget':
+            elif expr[0].content == 'array':
                 if len(expr) != 3:
                     raise CompilerError.from_token(expr[0],
-                        'aget must be of the form (aget EXPR EXPR)')
+                        'array must be of the form (array EXPR EXPR)')
 
                 array = self.parse_expression(expr[1])
                 index = self.parse_expression(expr[2])
-                return expressions.ArrayGet(array, index)
-            elif expr[0].content == 'sget':
+                return expressions.Array(array, index)
+            elif expr[0].content == 'field':
                 if len(expr) < 3:
                     raise CompilerError.from_token(expr[0],
-                        'sget must be of the form (sget EXPR IDENTIFIER+)')
+                        'field must be of the form (field EXPR IDENTIFIER+)')
 
                 struct = self.parse_expression(expr[1])
 
@@ -435,9 +425,11 @@ class Driver:
                 for field in expr[2:]:
                     if not is_identifier(field):
                         raise CompilerError.from_token(expr[0],
-                            'sget must be of the form (sget EXPR IDENTIFIER+)')
+                            'field must be of the form (field EXPR IDENTIFIER+)')
 
-                return expressions.StructGet(struct, tuple(fields))
+                    fields.append(field.content)
+
+                return expressions.Field(struct, tuple(fields))
             elif expr[0].content in ('+', '-', '*', '/', '%'):
                 operator = expr[0].content
                 if len(expr) < 3:
@@ -495,9 +487,7 @@ class Driver:
 
             (block STATEMENT+)
 
-            (set IDENTIFIER EXPRESSION)
-            (aset IDENTIFIER EXPRESSION EXPRESSION)
-            (sset IDENTIFIER IDENTIFIER+ EXPRESSION)
+            (set ASSIGNABLE EXPRESSION)
 
             (if EXPRESSION STATEMENT STATEMENT?)
 
@@ -530,53 +520,16 @@ class Driver:
             elif statement[0].content == 'set':
                 if len(statement) != 3:
                     raise CompilerError.from_token(statement[0],
-                        'Set must be of the form (set IDENTIFIER EXPRESSION)')
+                        'Set must be of the form (set ASSIGNABLE EXPRESSION)')
 
-                identifier = statement[1]
+                assignable = self.parse_expression(statement[1])
                 if not is_identifier(identifier):
                     raise CompilerError.from_token(statement[0],
-                        'Set must be of the form (set IDENTIFIER EXPRESSION)')
+                        'Set must be of the form (set ASSIGNABLE EXPRESSION)')
 
                 expression = self.parse_expression(statement[2])
-                self.backend.handle_set(identifier.content, expression)
+                self.backend.handle_set(assignable, expression)
 
-            elif statement[0].content == 'aset':
-                if len(statement) != 4:
-                    raise CompilerError.from_token(statement[0],
-                        'Array set must be of the form (aset IDENTIFIER EXPRESSION EXPRESSION)')
-
-                identifier = statement[1]
-                if not is_identifier(identifier):
-                    raise CompilerError.from_token(statement[0],
-                        'Array set must be of the form (aset IDENTIFIER EXPRESSION EXPRESSION)')
-
-                index = self.parse_expression(statement[2])
-                expression = self.parse_expression(statement[3])
-                self.backend.handle_array_set(identifier.content, index, expression)
-
-            elif statement[0].content == 'sset':
-                if len(statement) < 4:
-                    # Minimum is 'sset', an identifier, a field, and an expression
-                    raise CompilerError.from_token(statement[0],
-                        'Struct set must be of the form (sset IDENTIFIER IDENTIFIER+ EXPRESSION)')
-
-                identifier = statement[1]
-                if not is_identifier(identifier):
-                    raise CompilerError.from_token(statement[0],
-                        'Struct set must be of the form (sset IDENTIFIER IDENTIFIER+ EXPRESSION)')
-
-                field_names = []
-                fields = statement[2:-1]
-                for field in fields:
-                    if not is_identifier(field):
-                        raise CompilerError.from_token(statement[0],
-                            'Struct set must be of the form (sset IDENTIFIER IDENTIFIER+ EXPRESSION)')
-
-                    field_names.append(field.content)
-
-                expression = self.parse_expression(statement[-1])
-                self.backend.handle_field_set(identifier.content,
-                        field_names, expression)
             elif statement[0].content == 'if':
                 if len(statement) not in (3, 4):
                     raise CompilerError.from_token(statement[0],

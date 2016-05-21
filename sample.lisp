@@ -92,8 +92,8 @@
  ;; Getting the size of a type is accomplished via (size-of T)
  (block
   (set list (ptr-to-int (@sbrk (size-of linked-ints))))
-  (sset list value head)
-  (sset list rest tail)
+  (set (field list value) head)
+  (set (field list rest) tail)
   (return list)))
 
 (define sum-linked-ints (list)
@@ -103,11 +103,7 @@
 
   ;; Assignments take the form:
   ;;
-  ;;  (set I E) updates variable I with the value in V.
-  ;;  (aset N I E) updates the pointer-typed variable I with the expression E 
-  ;;    at the offset I. The C equivalent is n[i] = e.
-  ;;  (sset N F+ E) updates the structure in N via the fields F with the expression
-  ;;    E. The C equivalent is n.f1.f2.f3.etc.fn = e
+  ;;  (set A E) updates assignable target A with the value in V.
   ;;
   (set sum 0)
 
@@ -126,17 +122,17 @@
   ;;     and the optional false body
   (while (!= list null)
    (block
-    ;; Accessors:
+    ;; Accessors / assignable targets:
     ;;
-    ;;   (aget E I) gets the value at the pointer E with I units of offset.
+    ;;   (array E I) gets the value at the pointer E with I units of offset.
     ;;     The C equivalent is e[i]
-    ;;   (sget E F+) gets the value of a structure E by traversing the fields F.
+    ;;   (field E F+) gets the value of a structure E by traversing the fields F.
     ;;     The C equivalent is (e).f1.f2.f3.etc.fn
     ;;
     ;; Arithmetic (do the same as in C)
     ;;  + - * / % << >>
-    (set sum (+ sum (sget list value)))
-    (set list (sget list next))))
+    (set sum (+ sum (field list value)))
+    (set list (field list next))))
 
   ;; Returns take the form:
   ;;
@@ -155,8 +151,8 @@
   (set list null)
   (set read-value 1)
   
-  (aset newline 0 10)
-  (aset newline 1 0)
+  (set (array newline 0) 10)
+  (set (array newline 1) 0)
 
   (while (!= read-value 0)
    (block

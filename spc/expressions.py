@@ -36,8 +36,8 @@ IntToPointer = namedtuple('IntToPointer', ['expr'])
 Cast = namedtuple('Cast', ['type', 'expr'])
 Func = namedtuple('Func', ['name'])
 
-ArrayGet = namedtuple('ArrayGet', ['array', 'index'])
-StructGet = namedtuple('StructGet', ['struct', 'fields'])
+Array = namedtuple('Array', ['array', 'index'])
+Field = namedtuple('Field', ['struct', 'fields'])
 
 ARITH_PLUS, ARITH_MINUS, ARITH_TIMES, ARITH_DIVIDE, ARITH_MOD = range(5)
 Arithmetic = namedtuple('Artithmetic', ['kind', 'lhs', 'rhs'])
