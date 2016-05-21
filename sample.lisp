@@ -66,11 +66,13 @@
 
  (global-var integer))
 
-;; Function definitions are different from C in two ways:
+;; Function definitions are different from C in three ways:
 ;;
 ;; - They don't contain type specifications (made redundant by forward decls)
 ;; - All functions must have a declare block before their bodies, even if it is
 ;;   empty
+;; - They can't return structures directly (this alleviates some complications
+;;   in the function call / return handling)
 (define cons-linked-ints (head tail)
  (declare
   (list linked-ints-ptr))
