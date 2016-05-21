@@ -548,3 +548,17 @@ class MarsBackend:
         self.in_function = False
         self.func_exit_label = None
 
+    def handle_block_start(self):
+        """
+        Handles the beginning of a begin block.
+
+        Does nothing, since blocks don't have their own scope, or otherwise do
+        anything useful besides group statements.
+        """
+
+    def handle_block_end(self):
+        """
+        Handles the end of a begin block.
+
+        Does nothing - see handle_block_start for why
+        """
