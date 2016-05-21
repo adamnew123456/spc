@@ -60,3 +60,14 @@ class SymbolTable:
                 table = table.parent
 
         return False
+
+BUILTIN_TYPES = SymbolTable(is_builtin=True)
+BUILTIN_TYPES['string'] = types.PointerTo(types.Byte)
+
+BUILTIN_FUNCTIONS = SymbolTable(is_builtin=True)
+BUILTIN_FUNCTIONS['@print-int'] = types.FunctionDecl(types.Byte, (types.Integer,))
+BUILTIN_FUNCTIONS['@print-string'] = types.FunctionDecl(types.Byte, (types.TypeName('string'),))
+BUILTIN_FUNCTIONS['@read-int'] = types.FunctionDecl(types.Integer, ())
+BUILTIN_FUNCTIONS['@read-string'] = types.FunctionDecl(types.Byte, (types.TypeName('string'), types.Integer))
+BUILTIN_FUNCTIONS['@sbrk'] = types.FunctionDecl(types.AnyPoniter, (types.Integer,))
+BUILTIN_FUNCTIONS['@exit'] = types.FunctionDecl(types.Byte, ())
