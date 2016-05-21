@@ -32,7 +32,7 @@ Integer = namedtuple('Integer', ['integer'])
 Reference = namedtuple('Reference', ['expr'])
 Dereference = namedtuple('Dereference', ['expr'])
 PointerToInt = namedtuple('PointerToInt', ['expr'])
-IntToPointer = namedtuple('IntToPointer', ['expr'])
+IntToPointer = namedtuple('IntToPointer', ['type', 'expr'])
 Cast = namedtuple('Cast', ['type', 'expr'])
 Func = namedtuple('Func', ['name'])
 

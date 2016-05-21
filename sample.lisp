@@ -80,7 +80,7 @@
  ;;  (ref E) gets a pointer to the value produced by E.
  ;;  (deref E) gets the value pointed to by the pointer produced by E
  ;;  (ptr-to-int E) gets the pointer which has the integer in E as its address
- ;;  (int-to-ptr E) gets the integer address in the pointer produced by E
+ ;;  (int-to-ptr E T) gets the integer address in the pointer produced by E
  ;;  (cast T E) casts the pointer produced by E to another type T
  ;;  (func I) gets a function pointer which is bound to the function of the
  ;;    given name.
@@ -148,7 +148,7 @@
   (newline (array-of byte 2)))
 
  (block
-  (set list null)
+  (set list (int-to-ptr 0 linked-ints-ptr))
   (set read-value 1)
   
   (set (array newline 0) 10)

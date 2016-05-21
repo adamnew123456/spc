@@ -320,7 +320,7 @@ class Driver:
             (ref EXPRESSION)
             (deref EXPRESSION)
             (ptr-to-int EXPRESSION)
-            (int-to-ptr EXPRESSION)
+            (int-to-ptr TYPE EXPRESSION)
             (cast TYPE EXPRESSION)
             (func IDENTIFIER)
 
@@ -382,12 +382,13 @@ class Driver:
                 expr = self.parse_expression(expr[1])
                 return expressions.Reference(expr)
             elif expr[0].content == 'int-to-ptr':
-                if len(expr) != 2:
+                if len(expr) != 3:
                     raise CompilerError.from_token(expr[0],
-                        'int-to-ptr must be of the form (int-to-ptr EXPR)')
+                        'int-to-ptr must be of the form (int-to-ptr EXPR TYPE)')
 
-                expr = self.parse_expression(expr[1])
-                return expressions.Reference(expr)
+                ret_type = self.parse_type(expr[1])
+                expr = self.parse_expression(expr[2])
+                return expressions.IntToPointer(ret_type, expr)
             elif expr[0].content == 'cast':
                 if len(expr) != 3:
                     raise CompilerError.from_token(expr[0],
