@@ -372,14 +372,14 @@ class Driver:
                         'deref must be of the form (deref EXPR)')
 
                 expr = self.parse_expression(expr[1])
-                return expressions.Reference(expr)
+                return expressions.Dereference(expr)
             elif expr[0].content == 'ptr-to-int':
                 if len(expr) != 2:
                     raise CompilerError.from_token(expr[0],
                         'ptr-to-int must be of the form (ptr-to-int EXPR)')
 
                 expr = self.parse_expression(expr[1])
-                return expressions.Reference(expr)
+                return expressions.PointerToInt(expr)
             elif expr[0].content == 'int-to-ptr':
                 if len(expr) != 3:
                     raise CompilerError.from_token(expr[0],
