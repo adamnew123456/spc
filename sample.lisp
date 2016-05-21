@@ -82,12 +82,6 @@
  ;;  (ptr-to-int E) gets the pointer which has the integer in E as its address
  ;;  (int-to-ptr E T) gets the integer address in the pointer produced by E
  ;;  (cast T E) casts the pointer produced by E to another type T
- ;;  (func I) gets a function pointer which is bound to the function of the
- ;;    given name.
- ;;
- ;; The need for (func I) stems from wanting to keep the namespaces of types
- ;; and values separate (as in C) as well as keeping the namespace of functions
- ;; separate from both of those (as in Common Lisp).
  ;;
  ;; Getting the size of a type is accomplished via (size-of T)
  (block

@@ -322,7 +322,6 @@ class Driver:
             (ptr-to-int EXPRESSION)
             (int-to-ptr TYPE EXPRESSION)
             (cast TYPE EXPRESSION)
-            (func IDENTIFIER)
 
             (array EXPRESSION EXPRESSION)
             (field EXPRESSION IDENTIFIER+)
@@ -397,16 +396,6 @@ class Driver:
                 cast_type = self.parse_type(expr[1])
                 expression = self.parse_expression(expr[2])
                 return expressions.Cast(cast_type, expression)
-            elif expr[0].content == 'func':
-                if len(expr) != 2:
-                    raise CompilerError.from_token(expr[0],
-                        'func must be of the form (func IDENT)')
-
-                if not is_identifier(expr[1]):
-                    raise CompilerError.from_token(expr[0],
-                        'func must be of the from (func IDENT)')
-
-                return expressions.Func(expr[1].content)
             elif expr[0].content == 'array':
                 if len(expr) != 3:
                     raise CompilerError.from_token(expr[0],

@@ -34,7 +34,6 @@ Dereference = namedtuple('Dereference', ['expr'])
 PointerToInt = namedtuple('PointerToInt', ['expr'])
 IntToPointer = namedtuple('IntToPointer', ['type', 'expr'])
 Cast = namedtuple('Cast', ['type', 'expr'])
-Func = namedtuple('Func', ['name'])
 
 Array = namedtuple('Array', ['array', 'index'])
 Field = namedtuple('Field', ['struct', 'fields'])
