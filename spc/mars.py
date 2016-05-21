@@ -2,7 +2,9 @@
 MARS compiler backend - responsible for taking program events emitted by the
 driver and converting them into code.
 """
+from collections import namedtuple
 import logging
+import string
 
 from .errors import CompilerError
 from . import expressions
