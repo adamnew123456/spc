@@ -15,7 +15,9 @@ FunctionPointer = namedtuple('FunctionPointer', ['return_type', 'params'])
 TypeName = namedtuple('TypeName', ['name'])
 
 # Structure is a bit of an oddity - it can't actually be used in 'raw form'
-# by the user, but is always aliased in a declare block
+# by the user, but is always aliased in a declare block.
+#
+# Also, fields is an OrderedDict, since the order of fields matters for layout,
 Struct = namedtuple('Struct', ['fields'])
 
 # This is used merely to record that a function has been declared - the
