@@ -792,13 +792,13 @@ class MarsBackend:
 
             self._write_instr('    lw $t0, {}($fp)', struct_dest)
             for field_name in expr.fields[:-1]:
-                struct_type = self._resolve_if_type_name(struct_type[field_name])
-
                 try:
                     offset = self._field_offset(struct_type, field_name)
                 except KeyError:
                     raise CompilerError(0, 0, 
                         "No field '{}' in structure {}", field, struct_type)
+
+                struct_type = self._resolve_if_type_name(struct_type[field_name])
 
                 # If this looks strange, remember that (field s f...) indicates
                 # a nested field, so we're crawling down a nested structure
