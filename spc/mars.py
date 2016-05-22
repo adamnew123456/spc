@@ -735,3 +735,52 @@ class MarsBackend:
                 raise CompilerError(0, 0, '(cast t x) requires t to be pointer type')
 
             return expr_dest, ret_type
+        elif isinstance(expr, expressions.Array):
+            # by_ref works, since arrays can be assigned to
+            array_dest, array_type = self._compile_expression(expr.array, temp_context)
+
+            if not isinstance(array_type, types.PointerType):
+                raise CompilerError(0, 0, '(array x i) requires x to be a pointer type')
+
+            index_dest, index_type = self._compile_expression(expr.index, temp_context)
+    
+            if index_type is not types.Integer: 
+                raise CompilerError(0, 0, '(array x i) requires i to be an integer')
+
+            # We have to account for the fact that the memory used by an element
+            # also includes the alignment padding added
+            element_align = self._type_alignment(array_type.type)
+            raw_element_size = self._type_size(array_type.type)
+            element_size = types.align_address(raw_element_size, element_align)
+
+            dest_offset = temp_context.add_temp(raw_element_size, element_align)
+
+            # This is an address computation for getting the precise offset to
+            # the element in question
+            #
+            #  base := load(array_dest)
+            #  index := load(index_dest)
+            #  byte_offset := index_dest * element_size
+            #  result := base + byte_offset
+            self._write_instr('    lw $t0, {}($fp)', array_dest)
+            self._write_instr('    lw $t1, {}($fp)', index_dest)
+            self._write_instr('    li $t2, {}', element_size)
+            self._write_instr('    mul $t1, t2')
+            self._write_instr('    mflo $t1')
+            self._write_instr('    add $t0, $t0, $t1')
+
+            if by_ref:
+                self._write_instr('    sw $t0, {}($fp)', dest_offset)
+                return dest_offset, array_type.type
+            else:
+                self._memcpy('t1', type_size, 
+                    't0', 0,
+                    'fp', dest_offset)
+
+                return dest_offset, array_type.type
+            else:
+                last_field_size = self._type_size(last_field_type)
+
+                self._write_instr('    add $t0, $t0, $t1')
+
+
