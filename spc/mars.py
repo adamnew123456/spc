@@ -1086,3 +1086,29 @@ class MarsBackend:
                 self._write_instr('    sw $v0, {}($fp)', return_dest)
 
             return return_dest, return_type
+
+    def handle_set(self, assignable, expression):
+        """
+        Handles an assignment from an expression to an assignable target.
+        """
+        temp_context = self.current_context.func_stack.get_temp_context(self)
+        with temp_context:
+            assign_dest, assign_type = (
+                self._compile_expression(assignable, temp_context, by_ref=True))
+
+            value_dest, value_type = (
+                self._compile_expression(expression, temp_context))
+
+            if value_type != assign_type:
+                raise CompilerError(0, 0, 
+                    'Cannot assign {} to {}', value_type, assign_tye)
+
+            # We have to do a dereference here, since the effect of loading
+            # by_ref is that we get an address rather than a value
+            self._write_instr('    lw $t0, {}($fp)', assign_dest)
+
+            assign_size = sef._type_size(assign_type)
+            self._memcpy('t1', assign_size,
+                'fp', value_dest,
+                't0', 0)
+
