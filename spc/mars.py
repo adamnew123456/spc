@@ -89,6 +89,10 @@ class SymbolTable:
 # A context is a bundle of symbol tables for values, functions, and types
 Context = namedtuple('Context', ['value_defns', 'type_defns', 'func_stack'])
 
+# While loops are identified by two labels - the start label, for re-running
+# the condition, and the end label, for exiting when the condition is false
+WhileLabels = namedtuple('WhileLabels', ['cond', 'exit'])
+
 # If conditions are identified by two labels - the else label, for when
 # the condition is false (to skip the then block) and the end label, for
 # when the condition is true (to skip the else block)
@@ -216,6 +220,7 @@ class MarsBackend:
         self.current_context = Context(program_vals, program_types, program_funcs, None)
 
         self.if_labels = []
+        self.while_labels = []
 
     def _push_context(self):
         """
@@ -1152,3 +1157,53 @@ class MarsBackend:
         if_context = self.if_labels[-1]
         self._write_instr('{}:', if_context.end)
         self.if_labels.pop()
+
+    def handle_while(self, cond):
+        """
+        Handles the start of a while loop.
+        """
+        while_context = WhileLabels(next(LABEL_MAKER), next(LABEL_MAKER))
+        self.while_labels.append(while_context)
+
+        self._write_instr('{}:', while_context.cond)
+
+        temp_context = self.current_context.func_stack.get_temp_context(self)
+        with temp_context:
+            cond_dest, cond_type = (
+                self._compile_expression(cond, temp_context))
+
+            if cond_type is not types.Integer:
+                raise CompilerError(0, 0, 'Conditional must be an integer')
+
+            self._write_instr('    lw $t0, {}($fp)', cond_dest)
+            self._write_instr('    beq $t0, $0, {}', while_context.exit)
+
+    def handle_while_end(self):
+        """
+        Handles the end of a while loop.
+        """
+        while_context = self.while_labels[-1]
+        self._write_instr('    j {}', while_context.cond)
+        self._write_instr('{}:', while_context.exit)
+
+    def handle_break(self):
+        """
+        Handles breaking out of a while loop.
+        """
+        try:
+            while_context = self.while_labels[-1]
+        except IndexError:
+            raise CompilerError(0, 0, 'Cannot have break outside of while loop')
+
+        self._write_instr('    j {}', while_context.exit)
+
+    def handle_continue(self):
+        """
+        Handles continuing at the top of a while loop.
+        """
+        try:
+            while_context = self.while_labels[-1]
+        except IndexError:
+            raise CompilerError(0, 0, 'Cannot have break outside of while loop')
+
+        self._write_instr('    j {}', while_context.cond)
