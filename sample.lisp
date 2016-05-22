@@ -126,7 +126,11 @@
     ;;     The C equivalent is (e).f1.f2.f3.etc.fn
     ;;
     ;; Arithmetic (do the same as in C)
-    ;;  + - * / % << >>
+    ;;  + - * / % & | ~ << >> >>>
+    ;;
+    ;; Logical expressions:
+    ;;   (&& E E) and (|| E E) are the short-circuiting versions of the
+    ;;   bitwise operators & and |
     (set sum (+ sum (field list value)))
     (set list (field list next))))
 

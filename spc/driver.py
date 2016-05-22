@@ -332,12 +332,23 @@ class Driver:
             (/ EXPRESSION EXPRESSION)
             (% EXPRESSION EXPRESSION)
 
+            (~ EXPRESSION)
+            (& EXPRESSION EXPRESSION)
+            (| EXPRESSION EXPRESSION)
+            (^ EXPRESSION EXPRESSION)
+            (<< EXPRESSION EXPRESSION)
+            (>> EXPRESSION EXPRESSION)
+            (>>> EXPRESSION EXPRESSION)
+
             (== EXPRESSION EXPRESSION)
             (!= EXPRESSION EXPRESSION)
             (< EXPRESSION EXPRESSION)
             (> EXPRESSION EXPRESSION)
             (<= EXPRESSION EXPRESSION)
             (>= EXPRESSION EXPRESSION)
+
+            (&& EXPRESSION EXPRESSION)
+            (|| EXPRESSION EXPRESSION)
 
             (size-of TYPE)
 
@@ -436,6 +447,30 @@ class Driver:
                     '%': expressions.ARITH_MOD,
                 }[operator]
                 return expressions.Arithmetic(kind, lhs, rhs)
+            elif expr[0].content in ('&', '|', '^', '<<', '>>', '>>>'):
+                operator = expr[0].content
+                if len(expr) != 3:
+                    raise CompilerError.from_token(expr[0],
+                        '{op} must be of the form ({op} EXPR EXPR)'.format(op=operator))
+
+                lhs = self.parse_expression(expr[1])
+                rhs = self.parse_expression(expr[2])
+                kind = {
+                    '&': expressions.BitAnd,
+                    '|': expressions.BitOr,
+                    '^': expressions.BitXor,
+                    '<<': expressions.BitShiftLeft,
+                    '>>': lambda lhs, rhs: expressions.BitShiftRight(lhs, rhs, False),
+                    '>>>': lambda lhs, rhs: expressions.BitShiftRight(lhs, rhs, True)
+                }[operator]
+                return kind(lhs, rhs)
+            elif expr[0].content == '~':
+                if len(expr) != 2:
+                    raise CompilerError.from_token(expr[0],
+                        '~ must be of the form (~ EXPRESSION)')
+
+                expr = self.parse_expression(expr[1])
+                return expressions.BitNot(expr)
             elif expr[0].content in ('==', '!=', '<', '>', '<=', '>='):
                 operator = expr[0].content
                 if len(expr) != 3:
@@ -453,6 +488,19 @@ class Driver:
                     '>=': expressions.CMP_GREATEQ,
                 }[operator]
                 return expressions.Compare(kind, lhs, rhs)
+            elif expr[0].content in ('&&', '||'):
+                operator = expr[0].content
+                if len(expr) != 3:
+                    raise CompilerError.from_token(expr[0],
+                        '{op} must be of the form ({op} EXPR EXPR)'.format(op=operator))
+
+                lhs = self.parse_expression(expr[1])
+                rhs = self.parse_expression(expr[2])
+                kind = {
+                    '&&': expressions.And,
+                    '||': expressions.Or,
+                }[operator]
+                return kind(lhs, rhs)
             elif expr[0].content == 'size-of':
                 if len(expr) != 2:
                     raise CompilerError.from_token(expr[0],

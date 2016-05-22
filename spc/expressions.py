@@ -44,4 +44,14 @@ Arithmetic = namedtuple('Artithmetic', ['kind', 'lhs', 'rhs'])
 CMP_LESS, CMP_GREATER, CMP_LESSEQ, CMP_GREATEQ, CMP_EQ, CMP_NOTEQ = range(6)
 Compare = namedtuple('Compare', ['kind', 'lhs', 'rhs'])
 
+BitAnd = namedtuple('BitAnd', ['lhs', 'rhs'])
+BitOr = namedtuple('BitOr', ['lhs', 'rhs'])
+BitXor = namedtuple('BitXor', ['lhs', 'rhs'])
+BitNot = namedtuple('BitNot', ['expr'])
+BitShiftLeft = namedtuple('BitShiftLeft', ['lhs', 'rhs'])
+BitShiftRight = namedtuple('BitShiftRight', ['lhs', 'rhs', 'sign_extend'])
+
+And = namedtuple('And', ['lhs', 'rhs'])
+Or = namedtuple('Or', ['lhs', 'rhs'])
+
 SizeOf = namedtuple('SizeOf', ['type'])
