@@ -562,3 +562,12 @@ class MarsBackend:
 
         Does nothing - see handle_block_start for why
         """
+
+    def _memcpy(self, tmp_reg, size, src_start_reg, src_start_offset, dest_start_reg, dest_start_offset):
+        """
+        Writes out a series of instructions which copies size bytes from the 
+        start to the end, using tmp_reg as the register.
+        """
+        for byte in range(size):
+            self._write_instr('    lb ${}, {}(${})', tmp_reg, byte + src_start_offset, src_start_reg)
+            self._write_instr('    sb ${}, {}(${})', tmp_reg, byte + dest_start_offset, dest_start_reg)
