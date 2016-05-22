@@ -89,6 +89,11 @@ class SymbolTable:
 # A context is a bundle of symbol tables for values, functions, and types
 Context = namedtuple('Context', ['value_defns', 'type_defns', 'func_stack'])
 
+# If conditions are identified by two labels - the else label, for when
+# the condition is false (to skip the then block) and the end label, for
+# when the condition is true (to skip the else block)
+IfLabels = namedtuple('IfLabels', ['else_body', 'end'])
+
 BUILTIN_TYPES = SymbolTable(is_builtin=True)
 BUILTIN_TYPES['string'] = types.PointerTo(types.Byte)
 
@@ -209,6 +214,8 @@ class MarsBackend:
 
         self.parent_contexts = []
         self.current_context = Context(program_vals, program_types, program_funcs, None)
+
+        self.if_labels = []
 
     def _push_context(self):
         """
@@ -1112,3 +1119,36 @@ class MarsBackend:
                 'fp', value_dest,
                 't0', 0)
 
+    def handle_if(self, cond):
+        """
+        Handles the start of an if statement.
+        """
+        if_context = IfLabels(next(LABEL_MAKER), next(LABEL_MAKER))
+        self.if_labels.append(if_context)
+
+        temp_context = self.current_context.func_stack.get_temp_context(self)
+        with temp_context:
+            cond_dest, cond_type = (
+                self._compile_expression(cond, temp_context))
+
+            if cond_type is not types.Integer:
+                raise CompilerError(0, 0, 'Conditional must be an integer')
+
+            self._write_instr('    lw $t0, {}($fp)', cond_dest)
+            self._write_instr('    beq $t0, $0, {}', if_context.else_body)
+
+    def handle_else(self):
+        """
+        Handles the end of the 'then' part of an if statement
+        """
+        if_context = self.if_labels[-1]
+        self._write_instr('    j {}', if_context.end)
+        self._write_instr('{}:', if_context.else_body)
+
+    def handle_if_end(self):
+        """
+        Handles the end of an if block
+        """
+        if_context = self.if_labels[-1]
+        self._write_instr('{}:', if_context.end)
+        self.if_labels.pop()
