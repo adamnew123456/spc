@@ -538,11 +538,6 @@ class MarsBackend:
         # Setup the function's stack frame before adding any other code
         self._write_instr('    sw $fp, -4($sp)')
         self._write_instr('    sw $ra, -8($sp)')
-        self._write_instr('    addi $fp, $sp, -8')
-
-        self._write_instr('    sw $fp, -4($sp)')
-        self._write_instr('    sw $ra, -8($sp)')
-
         self._write_instr('    addi $fp, $sp, 0')
         self._write_instr('    addi $sp, $sp, -8')
 
