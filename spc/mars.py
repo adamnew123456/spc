@@ -697,3 +697,26 @@ class MarsBackend:
                     'fp', -dest_offset)
 
                 return dest_offset, expr_type.type
+        elif isinstance(expr, expressions.PointerToInt):
+            # by_ref doesn't make sense - an integer can't be assigned to
+            if by_ref:
+                raise CompilerError(0, 0, '(ptr-to-int x) is not valid in a ref context')
+
+            expr_dest, expr_type = self._compile_expression(expr.expr, temp_context)
+
+            if not isinstance(expr_type, types.PointerTo):
+                raise CompilerError(0, 0, '(pointer-to-int x) requires x to be a non-function pointer')
+
+            return expr_dest, types.Integer
+        elif isinstance(expr, expressions.IntToPointer):
+            # by_ref doesn't make sense, since this cannot be directly assigned
+            expr_dest, expr_type = self._compile_expression(expr.expr, temp_context)
+
+            if not expr_type is types.Integer:
+                raise CompilerError(0, 0, '(int-to-ptr x t) requires x to be an integer')
+
+            ret_type = self._resolve_if_type_name(expr.type)
+            if not isinstance(ret_type, types.PointerTo):
+                raise CompilerError(0, 0, '(int-to-ptr x t) requires t to be pointer type')
+
+            return expr_dest, ret_type
