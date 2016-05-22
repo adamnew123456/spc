@@ -1264,3 +1264,11 @@ class MarsBackend:
                 self._write_instr('    lw $v0, {}($fp)', ret_dest)
 
         self._write_instr('    j {}', self.func_exit_label)
+
+    def handle_raw_expression(self, expr):
+        """
+        Handles an expression that isn't enclosed in a statement.
+        """
+        temp_context = self.current_context.func_stack.get_temp_context(self)
+        with temp_context:
+            self._compile_expression(expr, temp_context)
