@@ -422,7 +422,7 @@ class Driver:
                 return expressions.Field(struct, tuple(fields))
             elif expr[0].content in ('+', '-', '*', '/', '%'):
                 operator = expr[0].content
-                if len(expr) < 3:
+                if len(expr) != 3:
                     raise CompilerError.from_token(expr[0],
                         '{op} must be of the form ({op} EXPR EXPR)'.format(op=operator))
 
@@ -438,7 +438,7 @@ class Driver:
                 return expressions.Arithmetic(kind, lhs, rhs)
             elif expr[0].content in ('==', '!=', '<', '>', '<=', '>='):
                 operator = expr[0].content
-                if len(expr) < 3:
+                if len(expr) != 3:
                     raise CompilerError.from_token(expr[0],
                         '{op} must be of the form ({op} EXPR EXPR)'.format(op=operator))
 
