@@ -652,7 +652,7 @@ class MarsBackend:
             else:
                 self._memcpy('t1', type_size, 
                     't0', 0, 
-                    'fp', -dest_offset)
+                    'fp', dest_offset)
 
             return type_of, dest_offset
         elif isinstance(expr, expressions.Integer):
@@ -694,7 +694,7 @@ class MarsBackend:
 
                 self._memcpy('t1', type_size,
                     't0', 0, 
-                    'fp', -dest_offset)
+                    'fp', dest_offset)
 
                 return dest_offset, expr_type.type
         elif isinstance(expr, expressions.PointerToInt):
