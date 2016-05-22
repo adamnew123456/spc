@@ -503,7 +503,9 @@ class MarsBackend:
 
         if not self.in_function:
             self._write_instr('.text')
-            self._write_instr('    j main')
+            self._write_instr('    jalr main')
+            self._write_instr('    li $v0, 10')
+            self._write_instr('    syscall')
         else:
             self._write_instr('    addi $sp, -{}', self.current_context.func_stack.locals_size())
 
