@@ -102,12 +102,13 @@ BUILTIN_TYPES = SymbolTable(is_builtin=True)
 BUILTIN_TYPES['string'] = types.PointerTo(types.Byte)
 
 BUILTIN_FUNCTIONS = SymbolTable(is_builtin=True)
-BUILTIN_FUNCTIONS['@print-int'] = types.FunctionDecl(types.Byte, (types.Integer,))
-BUILTIN_FUNCTIONS['@print-string'] = types.FunctionDecl(types.Byte, (types.TypeName('string'),))
-BUILTIN_FUNCTIONS['@read-int'] = types.FunctionDecl(types.Integer, ())
-BUILTIN_FUNCTIONS['@read-string'] = types.FunctionDecl(types.Byte, (types.TypeName('string'), types.Integer))
-BUILTIN_FUNCTIONS['@sbrk'] = types.FunctionDecl(types.AnyPoniter, (types.Integer,))
-BUILTIN_FUNCTIONS['@exit'] = types.FunctionDecl(types.Byte, ())
+BUILTIN_FUNCTIONS['@print-int'] = types.FunctionPointer(types.Byte, (types.Integer,))
+BUILTIN_FUNCTIONS['@print-string'] = types.FunctionPointer(types.Byte, (types.TypeName('string'),))
+BUILTIN_FUNCTIONS['@read-int'] = types.FunctionPointer(types.Integer, ())
+BUILTIN_FUNCTIONS['@read-string'] = types.FunctionPointer(types.Byte, (types.TypeName('string'), types.Integer))
+BUILTIN_FUNCTIONS['@sbrk'] = types.FunctionPointer(types.AnyPoniter, (types.Integer,))
+BUILTIN_FUNCTIONS['@exit'] = types.FunctionPointer(types.Byte, ())
+BUILTIN_FUNC_NAMES = set(BUILTIN_FUNCTIONS.bindings.keys())
 
 class FunctionStack:
     """
@@ -1042,7 +1043,14 @@ class MarsBackend:
             if by_ref:
                 raise CompilerError(0, 0, 'Cannot use function result in a ref context')
 
-            func_dest, func_type = self._compile_expression(expr.func)
+            is_builtin = (isinstance(expr.func, expressions.Variable) and
+                            expr.func.name in BUILTIN_FUNC_NAMES)
+
+            if is_builtin:
+                func_dest, func_type = self._compile_expression(expr.func)
+            else:
+                func_dest = None
+                func_type = BUILTIN_FUNCTIONS[expr.func.name]
 
             if not isinstance(func_type, types.FunctionPointer):
                 raise CompilerError(0, 0, 'Calls must be either to functions or function pointers')
@@ -1065,22 +1073,47 @@ class MarsBackend:
                 param_dests.append(param_dest)
                 param_types.append(param_real_type)
 
-            # The reason for going through the parameter list again, is to
-            # ensure that they make it to the end of the stack 
-            # (successive param_dest values may not be successive, which we
-            # need them to be in order for the called function to know where
-            # they are)
-            for param_dest, param_type in zip(rev_param_dests, rev_param_types):
-                type_size = self._type_size(param_type)
-                type_align = self._type_alignment(param_type)
-                copy_dest = temp_context.add_temp(type_size, type_align)
+            if is_builtin:
+                if expr.func.name == '@print-int':
+                    self._write_instr('    lw $a0, {}($fp)', rev_param_dests[-1])
+                    self._write_instr('    li $v0, 1')
+                    self._write_instr('    syscall')
+                elif expr.func.name == '@print-string':
+                    self._write_instr('    lw $a0, {}($fp)', rev_param_dests[-1])
+                    self._write_instr('    li $v0, 4')
+                    self._write_instr('    syscall')
+                elif expr.func.name == '@read-int':
+                    self._write_instr('    li $v0, 5')
+                    self._write_instr('    syscall')
+                elif expr.func.name == '@read-string':
+                    self._write_instr('    lw $a0, {}($fp)', rev_param_dests[-1])
+                    self._write_instr('    lw $a1, {}($fp)', rev_param_dests[-2])
+                    self._write_instr('    li $v0, 8')
+                    self._write_instr('    syscall')
+                elif expr.func.name == '@sbrk':
+                    self._write_insr('    lw $a0, {}($fp)', rev_param_dests[-1])
+                    self._write_instr('    li $v0, 9')
+                    self._write_instr('    syscall')
+                elif expr.func.name == '@exit':
+                    self._write_instr('    li $v0, 10')
+                    self._write_instr('    syscall')
+            else:
+                # The reason for going through the parameter list again, is to
+                # ensure that they make it to the end of the stack 
+                # (successive param_dest values may not be successive, which we
+                # need them to be in order for the called function to know where
+                # they are)
+                for param_dest, param_type in zip(rev_param_dests, rev_param_types):
+                    type_size = self._type_size(param_type)
+                    type_align = self._type_alignment(param_type)
+                    copy_dest = temp_context.add_temp(type_size, type_align)
 
-                self._memcpy('t1', type_size,
-                    'fp', param_dest,
-                    'fp', copy_dest)
+                    self._memcpy('t1', type_size,
+                        'fp', param_dest,
+                        'fp', copy_dest)
 
-            self._write_instr('    lw $t0, {}($fp)', func_dest)
-            self._write_instr('    jalr $t0')
+                self._write_instr('    lw $t0, {}($fp)', func_dest)
+                self._write_instr('    jalr $t0')
 
             return_type = self._resolve_if_type_name(func_type.return_type)
             return_type_size = self._type_size(return_type)
