@@ -778,8 +778,52 @@ class MarsBackend:
                     'fp', dest_offset)
 
                 return dest_offset, array_type.type
+        elif isinstance(expr, expressions.Field):
+            # by_ref makes sense for fields, since the address of the final
+            # field can be assigned to
+
+            # Note that intermediate fields can always be loaded by reference,
+            # since structs always have memory locations
+            struct_dest, struct_type = (
+                self._compile_expression(expr.struct, temp_context, by_ref=True))
+
+            if not isinstance(struct_type, types.Struct):
+                raise CompilerError(0, 0, '(field s f...) requires that s be a structure')
+
+            self._write_instr('    lw $t0, {}($fp)', struct_dest)
+            for field_name in expr.fields[:-1]:
+                struct_type = self._resolve_if_type_name(struct_type[field_name])
+
+                try:
+                    offset = self._field_offset(struct_type, field_name)
+                except KeyError:
+                    raise CompilerError(0, 0, 
+                        "No field '{}' in structure {}", field, struct_type)
+
+                # If this looks strange, remember that (field s f...) indicates
+                # a nested field, so we're crawling down a nested structure
+                self._write_instr('    addi $t0, $t0, {}', offset)
+
+            last_field = expr.fields[-1]
+            last_field_type = struct_type[last_field]
+
+            if by_ref:
+                ref_type_size = self._type_size(types.Integer)
+                ref_type_align = self._type_alignment(types.Integer)
+                dest_offset = temp_context.add_temp(ref_type_size, ref_type_align)
+
+                self._write_instr('    sw $t0, {}($fp)', dest_offset)
+                return dest_offset, last_field_type
             else:
                 last_field_size = self._type_size(last_field_type)
+                last_field_align = self._type_alignment(last_field_type)
+                dest_offset = temp_context.add_temp(last_field_size, last_field_align)
+
+                self._memcpy('t1', last_field_size,
+                    't0', 0,
+                    'fp', dest_offset)
+
+                return dest_offset, last_field_type
 
                 self._write_instr('    add $t0, $t0, $t1')
 
