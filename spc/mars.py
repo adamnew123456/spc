@@ -655,3 +655,14 @@ class MarsBackend:
                     'fp', -dest_offset)
 
             return type_of, dest_offset
+        elif isinstance(expr, expressions.Integer):
+            if by_ref:
+                # by_ref is invalid, clearly, since you can't assign to an integer
+                raise CompilerError(0, 0, 'Cannot use an integer literal in a ref context')
+
+            dest_offset = temp_context.add_temp(self._type_size(types.Integer),
+                                                self._type_alignment(types.Integer))
+
+            self._write_instr('    li $t0, {}', expr.integer)
+            self._write_instr('    sw $t0, {}($fp)')
+            return types.Integer, dest_offset
