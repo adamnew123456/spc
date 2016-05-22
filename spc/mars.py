@@ -1026,3 +1026,63 @@ class MarsBackend:
             self._write_instr('    li $t0, {}', self._type_size(type_obj))
             self._write_instr('    sw $t0, {}($fp)', dest_offset)
             return dest_offset, types.Integer
+        elif isinstance(expr, expressions.Call):
+            if by_ref:
+                raise CompilerError(0, 0, 'Cannot use function result in a ref context')
+
+            func_dest, func_type = self._compile_expression(expr.func)
+
+            if not isinstance(func_type, types.FunctionPointer):
+                raise CompilerError(0, 0, 'Calls must be either to functions or function pointers')
+
+            if len(expr.params) != len(func_type.params):
+                raise CompilerError(0, 0, '{} expected {} params, got {}', 
+                        func_type, len(func_type.params), type(expr.params))
+
+            rev_param_dests = []
+            rev_param_types = []
+
+            func_params = (self._resolve_if_type_name(param_type) for param_type in func_type.params)
+            for param, param_expected_type in reversed(zip(expr.params, func_params)):
+                param_dest, param_real_type = self._compile_expression(expr.param)
+
+                if not isinstance(param_real_type, param_expected_type):
+                    raise CompilerError(0, 0, '{} expected in call, got {}', 
+                        param_expected_type, param_real_type)
+
+                param_dests.append(param_dest)
+                param_types.append(param_real_type)
+
+            # The reason for going through the parameter list again, is to
+            # ensure that they make it to the end of the stack 
+            # (successive param_dest values may not be successive, which we
+            # need them to be in order for the called function to know where
+            # they are)
+            for param_dest, param_type in zip(rev_param_dests, rev_param_types):
+                type_size = self._type_size(param_type)
+                type_align = self._type_alignment(param_type)
+                copy_dest = temp_context.add_temp(type_size, type_align)
+
+                self._memcpy('t1', type_size,
+                    'fp', param_dest,
+                    'fp', copy_dest)
+
+            self._write_instr('    lw $t0, {}($fp)', func_dest)
+            self._write_instr('    jalr $t0')
+
+            return_type = self._resolve_if_type_name(func_type.return_type)
+            return_type_size = self._type_size(return_type)
+            return_type_alignment = self._type_alignment(return_type)
+
+            return_dest = temp_context.add_temp(return_type_size, return_type_align)
+            
+            # Since structure return types are not allowed, the most we'll be
+            # copying is a full word
+            if return_type_size == 1:
+                self._write_instr('    sb $v0, {}($fp)', return_dest)
+            elif return_type_size == 2:
+                self._write_instr('    sh $v0, {}($fp)', return_dest)
+            elif return_type_size == 4:
+                self._write_instr('    sw $v0, {}($fp)', return_dest)
+
+            return return_dest, return_type
