@@ -666,3 +666,34 @@ class MarsBackend:
             self._write_instr('    li $t0, {}', expr.integer)
             self._write_instr('    sw $t0, {}($fp)')
             return types.Integer, dest_offset
+        elif isinstance(expr, expressions.Reference):
+            # by_ref doesn't make sense, since this can't be assigned directly
+            if by_ref:
+                raise CompilerError(0, 0, '(ref x) cannot be used in a ref context')
+
+            expr_dest, expr_type = self._compile_expression(expr.expr, temp_context, by_ref=True)
+            return expr_dest, types.PointerTo(expr_type)
+        elif isinstance(expr, expressions.Dereference):
+            # by_ref makes sense in almost any context:
+            #
+            # (set (deref x) 5)
+            #
+            # This, for example, would modify the value at the pointer x
+            expr_dest, expr_type = self._compile_expression(expr.expr, temp_context)
+
+            if not isinstance(expr_type, types.PointerTo):
+                raise CompilerError(0, 0, '(deref x) requires x to be a non-function pointer')
+
+            if by_ref:
+                return expr_dest, expr_type.type
+            else:
+                type_size = self._type_size(expr_type.type)
+                type_align = self._type_alignment(expr_type.type)
+                dest_offset = temp_context.add_temp(type_size, type_align)
+                self._write_instr('    lw $t0, {}($fp)', expr_dest)
+
+                self._memcpy('t1', type_size,
+                    't0', 0, 
+                    'fp', -dest_offset)
+
+                return dest_offset, expr_type.type
