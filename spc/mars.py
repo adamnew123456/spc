@@ -1014,3 +1014,15 @@ class MarsBackend:
             self._write_instr('    sw $t0, {}($fp)', dest_offset)
 
             return dest_offset, types.Integer
+        elif isinstance(expr, expressions.SizeOf):
+            if by_ref:
+                raise CompilerError(0, 0, 'Cannot use size-of result in a ref context')
+
+            int_size = self._type_size(types.Integer)
+            int_align = self._type_alignment(types.Integer)
+            dest_offset = temp_context.add_temp(int_size, int_align)
+
+            type_obj = self._resolve_if_type_name(expr.type)
+            self._write_instr('    li $t0, {}', self._type_size(type_obj))
+            self._write_instr('    sw $t0, {}($fp)', dest_offset)
+            return dest_offset, types.Integer
