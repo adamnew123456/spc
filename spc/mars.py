@@ -380,20 +380,9 @@ class MarsBackend:
                     # pre-populate. By doing this, we can avoid having to deal
                     # with the obvious question "where do we put this thing?"
                     raise CompilerError(0, 0, 'Cannot return struct from function')
-                elif isinstance(return_type, types.ArrayOf):
-                    # Array return types don't make sense, since there isn't a
-                    # way to return them, because they decay into pointers
-                    raise CompilerError(0, 0, 'Cannot return array from function')
 
                 for param in type_obj.params:
                     check(type_obj.params)
-
-                    param_type = self._resolve_if_type_name(type_obj)
-                    if isinstance(param_type, types.ArrayOf):
-                        # Array parameters don't make sense since array variables
-                        # decay into pointers immediately, meaning you couldn't 
-                        # actually satisfy the type checker
-                        raise CompilerError(0, 0, 'Cannot take array as parameter')
 
             # Anything not in those categories is a value type, and is valid
             # because it doesn't reference any other types

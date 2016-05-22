@@ -11,7 +11,6 @@ ByteType = namedtuple('ByteType', [])
 Byte = ByteType()
 
 PointerTo = namedtuple('PointerTo', ['type'])
-ArrayOf = namedtuple('ArrayOf', ['type', 'count'])
 FunctionPointer = namedtuple('FunctionPointer', ['return_type', 'params'])
 TypeName = namedtuple('TypeName', ['name'])
 
@@ -24,6 +23,10 @@ Struct = namedtuple('Struct', ['fields'])
 # This is used merely to record that a function has been declared - the
 # actual reified type is FunctionPointer
 FunctionDecl = namedtuple('FunctionDecl', ['return_type', 'params'])
+
+# Like FunctionDecl - the actual reified type is a pointer, this is just
+# a declaration to allocate a certain amount of space somewhere
+ArrayOf = namedtuple('ArrayOf', ['type', 'count'])
 
 AliasDef = namedtuple('AliasDef', ['type'])
 

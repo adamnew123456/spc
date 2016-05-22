@@ -171,24 +171,6 @@ class Driver:
 
                 return types.PointerTo(self.parse_type(chunk[1]))
 
-            elif chunk[0].content == 'array-of':
-                if len(chunk) != 3:
-                    raise CompilerError.from_token(chunk[0],
-                        'array-of must be of the form (array-of TYPE NUMBER)')
-
-                array_type = self.parse_type(chunk[1])
-
-                count = chunk[2]
-                if not is_integer(count):
-                    raise CompilerError.from_token(chunk[0],
-                        'array-of must be of the form (array-of TYPE NUMBER)')
-
-                if count.content <= 0:
-                    raise CompilerError.from_token(chunk[2],
-                        'Array length must be positive')
-
-                return types.ArrayOf(array_type, count.content)
-
             elif chunk[0].content == 'func-pointer':
                 if len(chunk) < 2:
                     raise CompilerError.from_token(chunk[0],
@@ -215,6 +197,7 @@ class Driver:
         """
         Parses normal types, in addition to the forms:
 
+            (array-of TYPE SIZE): Which indicates an array of the given type
             (function TYPE TYPE*): Which indicates a function declaration
             (struct (IDENTIFIER TYPE)+): Which indicates a structure definition
             (alias TYPE): Which indicates an alias to an existing type
@@ -226,7 +209,24 @@ class Driver:
             raise CompilerError.from_token(chunk[0],
                 'Invalid declaration type')
 
-        if chunk[0].content == 'function':
+        if chunk[0].content == 'array-of':
+            if len(chunk) != 3:
+                raise CompilerError.from_token(chunk[0],
+                    'array-of must be of the form (array-of TYPE NUMBER)')
+
+            array_type = self.parse_type(chunk[1])
+
+            count = chunk[2]
+            if not is_integer(count):
+                raise CompilerError.from_token(chunk[0],
+                    'array-of must be of the form (array-of TYPE NUMBER)')
+
+            if count.content <= 0:
+                raise CompilerError.from_token(chunk[2],
+                    'Array length must be positive')
+
+            return types.ArrayOf(array_type, count.content)
+        elif chunk[0].content == 'function':
             if len(chunk) < 2:
                 raise CompilerError.from_token(chunk[0],
                         'function must be of the form (function TYPE TYPE*)')
