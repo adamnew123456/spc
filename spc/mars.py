@@ -720,3 +720,18 @@ class MarsBackend:
                 raise CompilerError(0, 0, '(int-to-ptr x t) requires t to be pointer type')
 
             return expr_dest, ret_type
+        elif isinstance(expr, expressions.Cast):
+            # by_ref doesn't work, again because this can't be assigned to directly
+            if by_ref:
+                raise CompilerError(0, 0, '(cast t x) cannot be used in a ref context')
+
+            expr_dest, expr_type = self._compile_expression(expr.expr, temp_context)
+
+            if not isinstance(expr_type, types.PointerType):
+                raise CompilerError(0, 0, '(cast t x) requires x to be a pointer type')
+
+            ret_type = self._resolve_if_type_name(expr.type)
+            if not isinstance(ret_type, types.PointerTo):
+                raise CompilerError(0, 0, '(cast t x) requires t to be pointer type')
+
+            return expr_dest, ret_type
