@@ -937,5 +937,80 @@ class MarsBackend:
 
             self._write_instr('    sw $t0, {}($fp)', dest_offset)
             return dest_offset, types.Integer
+        elif isinstance(expr, expressions.And):
+            if by_ref:
+                raise CompilerError(0, 0, 'Cannot use logical result in a ref context')
 
+            int_size = self._type_size(types.Integer)
+            int_align = self._type_alignment(types.Integer)
+            dest_offset = temp_context.add_temp(int_size, int_align)
 
+            # The code that we're going for here is the equivalent of the following:
+            #
+            # Given X := A && B
+            #
+            # a_result := A
+            # X := 0
+            # if (a_result)
+            #     b_result := B
+            #     X := b_result
+            end_label = next(LABEL_MAKER)
+
+            lhs_dest, lhs_type = self._compile_expression(expr.lhs, temp_context)
+            
+            if lhs_type is not types.Integer:
+                    'Logical expression requires integer on LHS')
+
+            self._write_instr('    lw $t0, {}($fp)', lhs_dest)
+            self._write_instr('    xor $t0, $t0, $t0')
+            self._write_instr('    beq $t0, $0, {}', end_label)
+
+            rhs_dest, rhs_type = self._compile_expression(expr.rhs, temp_context)
+
+            if rhs_type is not types.Integer:
+                raise CompilerError(0, 0, 
+                    'Logical expression requires integer on RHS')
+
+            self._write_instr('    lw $t0, {}($fp)', rhs_dest)
+            self._write_instr('{}:', end_label)
+            self._write_instr('    sw $t0, {}($fp)', dest_offset)
+
+            return dest_offset, types.Integer
+        elif isinstance(expr, expressions.Or):
+            if by_ref:
+                raise CompilerError(0, 0, 'Cannot use logical result in a ref context')
+
+            int_size = self._type_size(types.Integer)
+            int_align = self._type_alignment(types.Integer)
+            dest_offset = temp_context.add_temp(int_size, int_align)
+
+            # The code that we're going for here is the equivalent of the following:
+            #
+            # Given X := A || B
+            #
+            # a_result := A
+            # X := a_result
+            # if (!a_result)
+            #     b_result := B
+            #     X := b_result
+            end_label = next(LABEL_MAKER)
+
+            lhs_dest, lhs_type = self._compile_expression(expr.lhs, temp_context)
+            
+            if lhs_type is not types.Integer:
+                    'Logical expression requires integer on LHS')
+
+            self._write_instr('    lw $t0, {}($fp)', lhs_dest)
+            self._write_instr('    bne $t0, $0, {}', end_label)
+
+            rhs_dest, rhs_type = self._compile_expression(expr.rhs, temp_context)
+
+            if rhs_type is not types.Integer:
+                raise CompilerError(0, 0, 
+                    'Logical expression requires integer on RHS')
+
+            self._write_instr('    lw $t0, {}($fp)', rhs_dest)
+            self._write_instr('{}:', end_label)
+            self._write_instr('    sw $t0, {}($fp)', dest_offset)
+
+            return dest_offset, types.Integer
