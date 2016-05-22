@@ -573,3 +573,85 @@ class MarsBackend:
         for byte in range(size):
             self._write_instr('    lb ${}, {}(${})', tmp_reg, byte + src_start_offset, src_start_reg)
             self._write_instr('    sb ${}, {}(${})', tmp_reg, byte + dest_start_offset, dest_start_reg)
+
+    def _compile_expression(self, expr, temp_context, by_ref=False):
+        """
+        Unwraps an expression into a series of temporary assignments, putting
+        the final result onto a position on the stack.
+
+        Returns a tuple indicating the type of the expression, and the
+        expression's offset on the stack.
+
+        This can behave one of two ways:
+
+        - By value, where the expression's value is put into the destination
+        - By reference, where the expression's address is put into the destination
+        """
+        # Since expressions can be nested, but assembly statements cannot be,
+        # expressions have to be 'unwrapped' in order to be of any use.
+        #
+        # For example, consider the following:
+        #
+        # (set x (+ (+ a b) (+ c d)))
+        #
+        # This would have to be done as the following three statements:
+        #
+        #   add $t0, a, b
+        #   add $t1, c, d
+        #   add x, $t0, $t1
+
+        # by_ref is useful to have - conside the following example with structs:
+        #
+        # - structs which are assigned to other structs should do so by 
+        #   copying one to another, bit by bit. This is where by_ref == False.
+        #
+        # - structs whose fields are being set should do so by loading
+        #   the address of the struct, not the value (since copying would mean
+        #   that the original struct isn't changed). This is where by_ref == True.
+        #
+        # The litmus test for whether or not something can be used in a ref 
+        # context is whether it makes sense to assign to it. In this way, it is
+        # similar to the lvalue/rvalue distinction in C (but a bit more liberal)
+
+        if isinstance(expr, expressions.Variable):
+            # by_ref obviously makes sense - otherwise, assignment to a variable
+            # couldn't work at all!
+
+            owning_scope = self.current_context.value_defns.find(expr.name)
+            if owning_scope is None:
+                raise CompilerError(0, 0, 'No variable "{}" in scope', expr.name)
+
+            type_of = owning_scope[name]
+            if isinstance(type_of, types.TypeName):
+                type_of = self._resovle_type(type_of)
+
+            if isinstance(type_of, types.FunctionDecl):
+                type_of = types.func_decl_to_ptr(type_of)
+
+            if by_ref:
+                type_size = self._type_size(types.PointerTo(type_of))
+                type_align = self._type_alignment(types.PointerTo(type_of))
+            else:
+                type_size = self._type_size(type_of)
+                typ_offset = self._type_alignment(type_of)
+
+            dest_offset = temp_context.add_temp(type_size, type_align)
+
+            if owning_scope.is_global:
+                # Global variables are somewhere in .data land, labeled by their name
+                self._write_instr('    la $t0, {}', mangle_label(name))
+            elif owning_scope.is_builtin:
+                raise CompilerError(0, 0, 'Builtin values cannot be used, except to be called')
+            else:
+                # Local variables are on the stack
+                stack_offset = self.current_context.func_stack[name]
+                self._write_instr('    addi $t0, $fp, {}', stack_offset)
+
+            if by_ref:
+                self._write_instr('    sw $t0, {}($fp)', dest_offset)
+            else:
+                self._memcpy('t1', type_size, 
+                    't0', 0, 
+                    'fp', -dest_offset)
+
+            return type_of, dest_offset
