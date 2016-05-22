@@ -96,8 +96,8 @@ class Backend:
 
     def handle_else(self):
         """
-        Called after handing the 'then' portion of an if, but before the else
-        (if there is one - if not, this is not called)
+        Called after handing the 'then' portion of an if, but before the else.
+        This is called whether or not there actually is an 'else' body.
         """
 
     def handle_if_end(self):
@@ -577,9 +577,9 @@ class Driver:
                 self.backend.handle_if(condition)
 
                 self.process_statement(statement[2])
+                self.backend.handle_else()
 
                 if len(statement) == 4:
-                    self.backend.handle_else()
                     self.process_statement(statement[3])
 
                 self.backend.handle_if_end()
