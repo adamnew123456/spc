@@ -1272,3 +1272,9 @@ class MarsBackend:
         temp_context = self.current_context.func_stack.get_temp_context(self)
         with temp_context:
             self._compile_expression(expr, temp_context)
+
+def get_backend(output):
+    """
+    Returns the backend represented by this module.
+    """
+    return MARSBackend(output)
