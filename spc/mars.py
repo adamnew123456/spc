@@ -824,7 +824,118 @@ class MarsBackend:
                     'fp', dest_offset)
 
                 return dest_offset, last_field_type
+        elif isinstance(expr, expressions.Arithmetic):
+            if by_ref:
+                raise CompilerError(0, 0, 'Cannot use arithmetic result in a ref context')
 
+            lhs_dest, lhs_type = self._compile_expression(expr.lhs, temp_context)
+            rhs_dest, rhs_type = self._compile_expression(expr.rhs, temp_context)
+            
+            if lhs_type is not Integer:
+                raise CompilerError(0, 0, 
+                    'Arithmetic expression requires integer on LHS')
+
+            if rhs_type is not Integer:
+                raise CompilerError(0, 0, 
+                    'Arithmetic expression requires integer on RHS')
+    
+            int_size = self._type_size(types.Integer)
+            int_align = self._type_alignment(types.Integer)
+            dest_offset = temp_context.add_temp(int_size, int_align)
+
+            self._write_instr('    lw $t0, {}($fp)', lhs_dest)
+            self._write_instr('    lw $t1, {}($fp)', rhs_dest)
+
+            if expr.kind == expressions.ARITH_PLUS:
                 self._write_instr('    add $t0, $t0, $t1')
+            elif expr.kind == expressions.ARITH_MINUS:
+                self._write_instr('    sub $t0, $t0, $t1')
+            elif expr.kind == expressions.ARITH_TIMES:
+                self._write_instr('    mul $t0, $t1')
+                self._write_instr('    mflo $t0')
+            elif expr.kind == expressions.ARITH_DIVIDE:
+                self._write_instr('    div $t0, $t1')
+                self._write_instr('    mflo $t0')
+            elif expr.kind == expressions.ARITH_MOD:
+                self._write_instr('    div $t0, $t1')
+                self._write_instr('    mfhi $t0')
+
+            self._write_isntr('    sw $t0, {}($fp)', dest_offset)
+            return dest_offset, types.Integer
+        elif isinstance(expr, expressions.Compare):
+            if by_ref:
+                raise CompilerError(0, 0, 'Cannot use & result in a ref context')
+
+            lhs_dest, lhs_type = self._compile_expression(expr.lhs, temp_context)
+            rhs_dest, rhs_type = self._compile_expression(expr.rhs, temp_context)
+            
+            if not isinstance(lhs_type, (types.IntegerType, types.PointerTo)):
+                raise CompilerError(0, 0, 
+                    'Comparison expression requires integer or pointer on LHS')
+
+            if not isinstance(rhs_type, (types.IntegerType, types.PointerTo)):
+                raise CompilerError(0, 0, 
+                    'Comparison expression requires integer or pointer on RHS')
+    
+            int_size = self._type_size(types.Integer)
+            int_align = self._type_alignment(types.Integer)
+            dest_offset = temp_context.add_temp(int_size, int_align)
+
+            self._write_instr('    lw $t0, {}($fp)', lhs_dest)
+            self._write_instr('    lw $t1, {}($fp)', rhs_dest)
+
+            if expr.kind == expressions.CMP_LESS:
+                self._write_instr('    slt $t0, $t0, $t1')
+            elif expr.kind == expressions.CMP_GREATER:
+                self._write_instr('    slt $t0, $t1, $t0')
+            elif expr.kind == expressions.CMP_LESSEQ:
+                self._write_instr('    sle $t0, $t0, $t1')
+            elif expr.kind == expressions.CMP_GREATEQ:
+                self._write_instr('    sle $t0, $t1, $t0')
+            elif expr.kind == expressions.CMP_EQ:
+                self._write_instr('    seq $t0, $t0, $t1')
+            elif expr.kind == expressions.CMP_NOTEQ:
+                self._write_instr('    sne $t0, $t0, $t1')
+
+            self._write_instr('    sw $t0, {}($fp)', dest_offset)
+            return dest_offset, types.Integer
+        elif isinstance(expr, (expressions.BitAnd, expressions.BitOr, expressions.BitXor,
+                                expressions.BitShiftLeft, expressions.BitShiftRight)):
+            if by_ref:
+                raise CompilerError(0, 0, 'Cannot use bitwise result in a ref context')
+
+            lhs_dest, lhs_type = self._compile_expression(expr.lhs, temp_context)
+            rhs_dest, rhs_type = self._compile_expression(expr.rhs, temp_context)
+            
+            if lhs_type is not types.Integer:
+                    'Bitwise expression requires integer on LHS')
+
+            if rhs_type is not types.Integer:
+                raise CompilerError(0, 0, 
+                    'Bitwise expression requires integer on RHS')
+    
+            int_size = self._type_size(types.Integer)
+            int_align = self._type_alignment(types.Integer)
+            dest_offset = temp_context.add_temp(int_size, int_align)
+
+            self._write_instr('    lw $t0, {}($fp)', lhs_dest)
+            self._write_instr('    lw $t1, {}($fp)', rhs_dest)
+
+            if isinstance(expr, types.BitAnd):
+                self._write_instr('    and $t0, $t0, $t1')
+            elif isinstance(expr, types.BitOr):
+                self._write_instr('    or $t0, $t0, $t1')
+            elif isinstance(expr, types.BitXor):
+                self._write_instr('    xor $t0, $t0, $t1')
+            elif isinstance(expr, types.BitShiftLeft):
+                self._write_instr('    sllv $t0, $t0, $t1')
+            elif isinstance(expr, types.BitShiftRight):
+                if expr.sign_extend:
+                    self._write_instr('    srav $t0, $t0, $t1')
+                else:
+                    self._write_instr('    srlv $t0, $t0, $t1')
+
+            self._write_instr('    sw $t0, {}($fp)', dest_offset)
+            return dest_offset, types.Integer
 
 
