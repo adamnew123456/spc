@@ -532,6 +532,8 @@ class MarsBackend:
 
             self.current_context.value_defns[param] = param_type
 
+        self.func_ret_type = self._resolve_if_type_name(func_defn.return_type)
+
         func_label = mangle_label(name)
         self._write_instr('{}:', func_label)
 
@@ -559,6 +561,7 @@ class MarsBackend:
 
         self.in_function = False
         self.func_exit_label = None
+        self.func_ret_type = None
 
     def handle_block_start(self):
         """
@@ -1237,3 +1240,27 @@ class MarsBackend:
             raise CompilerError(0, 0, 'Cannot have break outside of while loop')
 
         self._write_instr('    j {}', while_context.cond)
+
+    def handle_return(self, expr):
+        """
+        Handles returning values from functions.
+        """
+        temp_context = self.current_context.func_stack.get_temp_context(self)
+        with temp_context:
+            ret_dest, ret_type = (
+                self._compile_expression(expr, temp_context))
+
+            if ret_type != self.func_ret_type:
+                raise CompilerError(0, 0, 'Returned expression must be the same as the function return type')
+
+            # Since we're barred from returning structures, the most we'll
+            # have to deal with is words
+            ret_type_size = self._type_size(ret_type)
+            if ret_type_size == 1:
+                self._write_instr('    lb $v0, {}($fp)', ret_dest)
+            elif ret_type_size == 2:
+                self._write_instr('    lh $v0, {}($fp)', ret_dest)
+            elif ret_type_size == 4:
+                self._write_instr('    lw $v0, {}($fp)', ret_dest)
+
+        self._write_instr('    j {}', self.func_exit_label)
