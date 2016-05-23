@@ -578,10 +578,6 @@ class Driver:
                         'Set must be of the form (set ASSIGNABLE EXPRESSION)')
 
                 assignable = self.parse_expression(statement[1])
-                if not is_identifier(identifier):
-                    raise CompilerError.from_token(statement[0],
-                        'Set must be of the form (set ASSIGNABLE EXPRESSION)')
-
                 expression = self.parse_expression(statement[2])
                 self.backend.handle_set(assignable, expression)
 
