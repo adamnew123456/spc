@@ -293,8 +293,10 @@ class MarsBackend:
         elif isinstance(type_obj, types.Struct):
             # The alignment only concerns the first element of the struct - 
             # the struct's internal alignment doesn't come into play
-            struct_types = type_obj.fields.values()
-            return self._type_alignment(next(struct_types))
+            #
+            # Also, an OrderdDict's fields are not iterable, for whatever reason
+            struct_types = list(type_obj.fields.values())
+            return self._type_alignment(struct_types[0])
         else:
             raise TypeError('Not a compiler type: {}'.format(type_obj))
 
@@ -466,7 +468,7 @@ class MarsBackend:
         either reserve space on the stack, or just add information to the local
         context.
         """
-        was_type_name = isinstance(name, types.TypeName)
+        was_type_name = isinstance(decl_type, types.TypeName)
         decl_type = self._resolve_if_type_name(decl_type)
 
         if was_type_name or isinstance(decl_type, types.RAW_TYPES):
