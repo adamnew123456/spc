@@ -587,6 +587,23 @@ class MarsBackend:
 
         Does nothing - see handle_block_start for why
         """
+    
+    def _memcpy_opt(self, tmp_reg, type_obj, src_start_reg, src_start_offset, dest_start_reg, dest_start_offset):
+        """
+        An optimized version of memcpy, which will do a single store word if 
+        the input value is of the right type.
+        """
+        if isinstance(type_obj, (types.IntegerType, types.PointerTo, types.FunctionPointer)):
+            self._write_comment('Optimized int copy from ${}+{} to ${}+{}',
+                    src_start_reg, src_start_offset, 
+                    dest_start_reg, dest_start_offset)
+
+            self._write_instr('    lw ${}, {}(${})', tmp_reg, src_start_offset, src_start_reg)
+            self._write_instr('    sw ${}, {}(${})', tmp_reg, dest_start_offset, dest_start_reg)
+        else:
+            self._memcpy(tmp_reg, self._type_size(type_obj),
+                    src_start_reg, src_start_offset, 
+                    dest_start_reg, dest_start_offset)
 
     def _memcpy(self, tmp_reg, size, src_start_reg, src_start_offset, dest_start_reg, dest_start_offset):
         """
@@ -682,7 +699,7 @@ class MarsBackend:
             if by_ref:
                 self._write_instr('    sw $t0, {}($fp)', dest_offset)
             else:
-                self._memcpy('t1', type_size, 
+                self._memcpy_opt('t1', type_of,
                     't0', 0, 
                     'fp', dest_offset)
 
@@ -724,7 +741,7 @@ class MarsBackend:
                 dest_offset = temp_context.add_temp(type_size, type_align)
                 self._write_instr('    lw $t0, {}($fp)', expr_dest)
 
-                self._memcpy('t1', type_size,
+                self._memcpy_opt('t1', expr_type.type,
                     't0', 0, 
                     'fp', dest_offset)
 
@@ -852,7 +869,7 @@ class MarsBackend:
                 self._write_instr('    sw $t0, {}($fp)', dest_offset)
                 return dest_offset, element_type
             else:
-                self._memcpy('t1', type_size, 
+                self._memcpy_opt('t1', element_type,
                     't0', 0,
                     'fp', dest_offset)
 
@@ -903,7 +920,7 @@ class MarsBackend:
                 last_field_align = self._type_alignment(last_field_type)
                 dest_offset = temp_context.add_temp(last_field_size, last_field_align)
 
-                self._memcpy('t1', last_field_size,
+                self._memcpy_opt('t1', last_field_type,
                     't0', 0,
                     'fp', dest_offset)
 
@@ -1182,7 +1199,7 @@ class MarsBackend:
                     type_align = self._type_alignment(param_type)
                     copy_dest = temp_context.add_temp(type_size, type_align)
 
-                    self._memcpy('t1', type_size,
+                    self._memcpy_opt('t1', param_type,
                         'fp', param_dest,
                         'fp', copy_dest)
 
@@ -1227,7 +1244,7 @@ class MarsBackend:
             self._write_instr('    lw $t0, {}($fp)', assign_dest)
 
             assign_size = self._type_size(assign_type)
-            self._memcpy('t1', assign_size,
+            self._memcpy_opt('t1', assign_type,
                 'fp', value_dest,
                 't0', 0)
 
