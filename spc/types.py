@@ -31,15 +31,14 @@ ArrayOf = namedtuple('ArrayOf', ['type', 'count'])
 AliasDef = namedtuple('AliasDef', ['type'])
 
 # Raw types are types which can be used as variables
-RAW_TYPES = (types.IntegerType, types.ByteType, types.TypeName, 
-        types.PointerTo, types.ArrayOf, types.FunctionPointer)
+RAW_TYPES = (IntegerType, ByteType, TypeName, PointerTo, FunctionPointer, ArrayOf)
 
 def decay_if_array(type_obj):
     """
     Decays arrays types into pointers.
     """
-    if isinstance(type_obj, types.ArrayOf):
-        return type_obj.PointerTo(type_obj.type)
+    if isinstance(type_obj, ArrayOf):
+        return PointerTo(type_obj.type)
     else:
         return type_obj
 
