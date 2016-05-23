@@ -44,14 +44,14 @@
 ;;  - Binding type aliases via alias
 ;;  - Declaring function signatures via function
 ;;  - Defining variables (via the other types)
-    
+
 (declare
  (linked-ints
   (struct (value integer)
           (next (pointer-to linked-ints))))
 
  (linked-ints-ptr
-  (alias linked-ints))
+  (alias (pointer-to linked-ints)))
 
  (cons-linked-ints
   (function linked-ints-ptr
@@ -92,9 +92,9 @@
  ;; Truncate/expand bytes <-> integers:
  ;;  (byte-to-int E) and (int-to-byte E)
  (block
-  (set list (ptr-to-int (@sbrk (size-of linked-ints))))
-  (set (field list value) head)
-  (set (field list rest) tail)
+  (set list (cast linked-ints-ptr (@sbrk (size-of linked-ints))))
+  (set (field (deref list) value) head)
+  (set (field (deref list) next) tail)
   (return list)))
 
 (define sum-linked-ints (list)
@@ -121,7 +121,7 @@
   ;; Conditionals take the form:
   ;;   (if E B B?) where E is the condition, and the B's are the true body
   ;;     and the optional false body
-  (while (!= list null)
+  (while (!= list 0)
    (block
     ;; Accessors / assignable targets:
     ;;
@@ -136,8 +136,8 @@
     ;; Logical expressions:
     ;;   (&& E E) and (|| E E) are the short-circuiting versions of the
     ;;   bitwise operators & and |
-    (set sum (+ sum (field list value)))
-    (set list (field list next))))
+    (set sum (+ sum (field (deref list) value)))
+    (set list (field (deref list) next))))
 
   ;; Returns take the form:
   ;;
@@ -145,26 +145,23 @@
   ;;    all returns must have values.
   (return sum)))
 
-;; The main function is always called with the standard C-like argument pair.
-(define main (argc argv)
+(define main ()
  (declare
   (list linked-ints-ptr)
   (read-value integer)
   (newline (array-of byte 2)))
 
  (block
-  (set list (int-to-ptr 0 linked-ints-ptr))
+  (set list (int-to-ptr linked-ints-ptr 0))
   (set read-value 1)
   
   (set (array newline 0) (int-to-byte 10))
   (set (array newline 1) (int-to-byte 0))
-  (set (array newline 0) 10)
-  (set (array newline 1) 0)
 
   (while (!= read-value 0)
    (block
     (set read-value (@read-int))
     (set list (cons-linked-ints read-value list))))
 
-  (print-int (sum-linked-ints list))
-  (print-string newline)))
+  (@print-int (sum-linked-ints list))
+  (@print-string newline)))
