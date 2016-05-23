@@ -86,8 +86,13 @@ class SymbolTable:
 
         return False
 
-# A context is a bundle of symbol tables for values, functions, and types
-Context = namedtuple('Context', ['value_defns', 'type_defns', 'func_stack'])
+# A context is a bundle of symbol tables for values, functions, and types.
+#
+# The need for array_bound comes about because arrays are treated like pointers,
+# but are referenced differently - their 'value' is their address (not the value
+# of their first element), and they can't actually be assigned to (since they
+# are a label for a hunk of memory)
+Context = namedtuple('Context', ['value_defns', 'type_defns', 'array_bound', 'func_stack'])
 
 # While loops are identified by two labels - the start label, for re-running
 # the condition, and the end label, for exiting when the condition is false
@@ -219,7 +224,7 @@ class MarsBackend:
         program_types = SymbolTable(BUILTIN_TYPES, is_global=True)
 
         self.parent_contexts = []
-        self.current_context = Context(program_vals, program_types, None)
+        self.current_context = Context(program_vals, program_types, set(), None)
 
         self.if_labels = []
         self.while_labels = []
@@ -234,6 +239,7 @@ class MarsBackend:
         self.current_context = Context(
                 SymbolTable(old_context.value_defns),
                 SymbolTable(old_context.type_defns),
+                set(),
                 FunctionStack())
 
     def _pop_context(self):
@@ -464,6 +470,7 @@ class MarsBackend:
         decl_type = self._resolve_if_type_name(decl_type)
 
         if was_type_name or isinstance(decl_type, types.RAW_TYPES):
+            was_array = isinstance(decl_type, types.ArrayOf)
             self.current_context.value_defns[name] = types.decay_if_array(decl_type)
 
             if self.in_function:
@@ -479,6 +486,10 @@ class MarsBackend:
 
                 size = self._type_size(decl_type)
                 self._write_instr('    .space {}', size)
+
+            if was_array:
+                self.current_context.array_bound.add(name)
+
         elif isinstance(decl_type, types.Struct):
             # Structure types are treated as structure definitions, which 
             # bind a type definition
@@ -683,6 +694,18 @@ class MarsBackend:
                 # 'by value' would load code, which doesn't make sense
                 by_ref = True
 
+            if (isinstance(type_of, types.PointerTo) and 
+                    expr.name in self.current_context.array_bound):
+                # Arrays are promoted to by_ref, but for a special reason - the
+                # want to be pointers (thus a non-by-ref load should get back
+                # the address) but are more like values. Making them by_ref
+                # allows them to be used like pointers, but with the side
+                # effect that they can't be assigned to
+                if by_ref:
+                    raise CompilerError(0, 0, 'Cannot use array in a ref context')
+
+                by_ref = True
+
             if by_ref:
                 type_size = self._type_size(types.Integer)
                 type_align = self._type_alignment(types.Integer)
@@ -833,7 +856,7 @@ class MarsBackend:
             return expr_dest, ret_type
         elif isinstance(expr, expressions.Array):
             # by_ref works, since arrays can be assigned to
-            array_dest, array_type = self._compile_expression(expr.array, temp_context, by_ref=True)
+            array_dest, array_type = self._compile_expression(expr.array, temp_context)
 
             if not isinstance(array_type, types.PointerTo):
                 raise CompilerError(0, 0, '(array x i) requires x to be a pointer type')
