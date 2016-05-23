@@ -224,7 +224,7 @@ class MarsBackend:
         program_types = SymbolTable(BUILTIN_TYPES, is_global=True)
 
         self.parent_contexts = []
-        self.current_context = Context(program_vals, program_types, set(), None)
+        self.current_context = Context(program_vals, program_types, SymbolTable(), None)
 
         self.if_labels = []
         self.while_labels = []
@@ -239,7 +239,7 @@ class MarsBackend:
         self.current_context = Context(
                 SymbolTable(old_context.value_defns),
                 SymbolTable(old_context.type_defns),
-                set(),
+                SymbolTable(old_context.array_bound),
                 FunctionStack())
 
     def _pop_context(self):
@@ -488,7 +488,7 @@ class MarsBackend:
                 self._write_instr('    .space {}', size)
 
             if was_array:
-                self.current_context.array_bound.add(name)
+                self.current_context.array_bound[name] = True
 
         elif isinstance(decl_type, types.Struct):
             # Structure types are treated as structure definitions, which 
