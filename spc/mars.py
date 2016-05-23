@@ -19,7 +19,7 @@ LABEL_MAKER = ('LM_{}'.format(value) for value in itertools.count(1))
 # Note that _ is not included, to avoid creating ambiguities - _ is always
 # encoded as '_95'
 LABEL_CHARS = string.ascii_letters + string.digits
-def mangle_labels(label):
+def mangle_label(label):
     """
     Converts a label into a form which MARS accepts.
 
@@ -68,7 +68,7 @@ class SymbolTable:
             else:
                 table = table.parent
 
-        raise KeyError('Could not resolve symbol "{}"'.format(parent))
+        raise KeyError('Could not resolve symbol "{}"'.format(key))
 
     def __setitem__(self, key, value):
         if key in self:
@@ -76,7 +76,7 @@ class SymbolTable:
 
         self.bindings[key] = value
 
-    def __contains__(sef, key):
+    def __contains__(self, key):
         table = self
         while table is not None:
             if key in table.bindings:
@@ -106,7 +106,7 @@ BUILTIN_FUNCTIONS['@print-int'] = types.FunctionPointer(types.Byte, (types.Integ
 BUILTIN_FUNCTIONS['@print-string'] = types.FunctionPointer(types.Byte, (types.TypeName('string'),))
 BUILTIN_FUNCTIONS['@read-int'] = types.FunctionPointer(types.Integer, ())
 BUILTIN_FUNCTIONS['@read-string'] = types.FunctionPointer(types.Byte, (types.TypeName('string'), types.Integer))
-BUILTIN_FUNCTIONS['@sbrk'] = types.FunctionPointer(types.AnyPoniter, (types.Integer,))
+BUILTIN_FUNCTIONS['@sbrk'] = types.FunctionPointer(types.PointerTo(types.Byte), (types.Integer,))
 BUILTIN_FUNCTIONS['@exit'] = types.FunctionPointer(types.Byte, ())
 BUILTIN_FUNC_NAMES = set(BUILTIN_FUNCTIONS.bindings.keys())
 
@@ -139,6 +139,7 @@ class FunctionStack:
     def __init__(self):
         self.local_offset = -8
         self.param_offset = 0
+        self.vars = {}
 
     def add_param(self, name, size, alignment):
         """
@@ -157,7 +158,7 @@ class FunctionStack:
             types.align_address(self.local_offset - size, alignment, 
                 types.Alignment.Down))
 
-        self.vars[name] = local_offset
+        self.vars[name] = self.local_offset
 
     def get_temp_context(self, backend):
         """
@@ -218,7 +219,7 @@ class MarsBackend:
         program_types = SymbolTable(BUILTIN_TYPES, is_global=True)
 
         self.parent_contexts = []
-        self.current_context = Context(program_vals, program_types, program_funcs, None)
+        self.current_context = Context(program_vals, program_types, None)
 
         self.if_labels = []
         self.while_labels = []
@@ -245,7 +246,7 @@ class MarsBackend:
         """
         Writes an instruction to the output stream.
         """
-        print(fmt, *args, **kwargs, file=self.output_stream)
+        print(fmt.format(*args, **kwargs), file=self.output_stream)
 
     def _resolve_if_type_name(self, name):
         """
@@ -293,17 +294,19 @@ class MarsBackend:
         """
         Computes the offset of a specific field in the given structure.
         """
-        if field_name not in struct_type:
-            raise KeyError('Structure {} does not have field {}'.format(struct_type, field_name))
+        if field_name not in struct_type.fields:
+            raise KeyError('Structure {} does not have field "{}"'.format(struct_type, field_name))
 
         offset = 0
-        for field in type_obj.fields:
+        for field in struct_type.fields:
             if field_name == field:
                 break
 
-            field_type = self._resolve_if_type_name(type_obj.fields[field])
+            field_type = self._resolve_if_type_name(struct_type.fields[field])
+            field_alignment = self._type_alignment(field_type)
+
             offset = types.align_address(offset, field_alignment)
-            offset += self._type_size(field_type, depth + 1)
+            offset += self._type_size(field_type)
 
         return offset
 
@@ -338,7 +341,7 @@ class MarsBackend:
             # To avoid wasting space on the last element, this pads all the
             # elements but the last
             base_size = self._type_size(type_obj.type)
-            return self._array_offset(type_obj, types_obj.count - 1) + base_size
+            return self._array_offset(type_obj, type_obj.count - 1) + base_size
         elif isinstance(type_obj, types.Struct):
             last_field = list(type_obj.fields)[-1]
             last_field_type = type_obj.fields[last_field]
@@ -357,17 +360,17 @@ class MarsBackend:
         # Recursive types are uncovered later, when actually computing the size
         # of the types - obviously, computing the size of a type which includes
         # itself as a member is going to fail
-        to_check = set(type_objs)
-        checked = set()
+        to_check = list(type_objs)
+        checked = list()
 
         def check(type_obj):
             "Schedules the type to be checked if it hasn't been yet"
             if type_obj not in checked:
-                to_check.add(type_obj)
+                to_check.append(type_obj)
 
         while to_check:
-            type_obj = to_check.remove()
-            checked.add(type_obj)
+            type_obj = to_check.pop()
+            checked.append(type_obj)
 
             type_obj = self._resolve_if_type_name(type_obj)
 
@@ -503,11 +506,11 @@ class MarsBackend:
 
         if not self.in_function:
             self._write_instr('.text')
-            self._write_instr('    jalr main')
+            self._write_instr('    jal {}', mangle_label('main'))
             self._write_instr('    li $v0, 10')
             self._write_instr('    syscall')
         else:
-            self._write_instr('    addi $sp, -{}', self.current_context.func_stack.locals_size())
+            self._write_instr('    addi $sp, $sp, -{}', self.current_context.func_stack.locals_size())
 
     def handle_func_def_start(self, name, params):
         """
@@ -517,7 +520,7 @@ class MarsBackend:
         self.func_exit_label = next(LABEL_MAKER)
 
         try:
-            func_defn = self.current_context.func_defns[name]
+            func_defn = self.current_context.value_defns[name]
         except KeyError as exn:
             raise CompilerError(0, 0, 'Undefined function "{}"', name)
 
@@ -527,7 +530,7 @@ class MarsBackend:
             param_type = self._resolve_if_type_name(param_type)
 
             type_size = self._type_size(param_type)
-            alignment = self._type_alignment(type_size)
+            alignment = self._type_alignment(param_type)
             self.current_context.func_stack.add_param(param, type_size, alignment)
 
             self.current_context.value_defns[param] = param_type
@@ -553,7 +556,7 @@ class MarsBackend:
 
         frame_size = self.current_context.func_stack.locals_size() + 8
         self._write_instr('    addi $sp, $sp, {}', frame_size)
-        self._write_isntr('    lw $fp, -4($sp)')
+        self._write_instr('    lw $fp, -4($sp)')
         self._write_instr('    lw $ra, -8($sp)')
         self._write_instr('    jr $ra')
 
@@ -634,30 +637,39 @@ class MarsBackend:
             if owning_scope is None:
                 raise CompilerError(0, 0, 'No variable "{}" in scope', expr.name)
 
-            type_of = owning_scope[name]
+            type_of = owning_scope[expr.name]
             if isinstance(type_of, types.TypeName):
-                type_of = self._resovle_type(type_of)
+                type_of = self._resolve_if_type_name(type_of)
 
             if isinstance(type_of, types.FunctionDecl):
+                if by_ref:
+                    # You can't logically assign to the address you get back, so
+                    # it doesn't make sense to even try
+                    raise CompilerError(0, 0, 'Cannot use function in a ref context')
+
                 type_of = types.func_decl_to_ptr(type_of)
+
+                # Set the flag anyway, since trying to load a function 
+                # 'by value' would load code, which doesn't make sense
+                by_ref = True
 
             if by_ref:
                 type_size = self._type_size(types.PointerTo(type_of))
                 type_align = self._type_alignment(types.PointerTo(type_of))
             else:
                 type_size = self._type_size(type_of)
-                typ_offset = self._type_alignment(type_of)
+                type_align = self._type_alignment(type_of)
 
             dest_offset = temp_context.add_temp(type_size, type_align)
 
             if owning_scope.is_global:
                 # Global variables are somewhere in .data land, labeled by their name
-                self._write_instr('    la $t0, {}', mangle_label(name))
+                self._write_instr('    la $t0, {}', mangle_label(expr.name))
             elif owning_scope.is_builtin:
                 raise CompilerError(0, 0, 'Builtin values cannot be used, except to be called')
             else:
                 # Local variables are on the stack
-                stack_offset = self.current_context.func_stack[name]
+                stack_offset = self.current_context.func_stack[expr.name]
                 self._write_instr('    addi $t0, $fp, {}', stack_offset)
 
             if by_ref:
@@ -667,7 +679,7 @@ class MarsBackend:
                     't0', 0, 
                     'fp', dest_offset)
 
-            return type_of, dest_offset
+            return dest_offset, type_of
         elif isinstance(expr, expressions.Integer):
             if by_ref:
                 # by_ref is invalid, clearly, since you can't assign to an integer
@@ -677,8 +689,8 @@ class MarsBackend:
                                                 self._type_alignment(types.Integer))
 
             self._write_instr('    li $t0, {}', expr.integer)
-            self._write_instr('    sw $t0, {}($fp)')
-            return types.Integer, dest_offset
+            self._write_instr('    sw $t0, {}($fp)', dest_offset)
+            return dest_offset, types.Integer
         elif isinstance(expr, expressions.Reference):
             # by_ref doesn't make sense, since this can't be assigned directly
             if by_ref:
@@ -698,7 +710,7 @@ class MarsBackend:
                 raise CompilerError(0, 0, '(deref x) requires x to be a non-function pointer')
 
             if by_ref:
-                return expr_dest, expr_type.type
+                return expr_dest, self._resolve_if_type_name(expr_type.type)
             else:
                 type_size = self._type_size(expr_type.type)
                 type_align = self._type_alignment(expr_type.type)
@@ -709,7 +721,7 @@ class MarsBackend:
                     't0', 0, 
                     'fp', dest_offset)
 
-                return dest_offset, expr_type.type
+                return dest_offset, self._resolve_if_type_name(expr_type.type)
         elif isinstance(expr, expressions.PointerToInt):
             # by_ref doesn't make sense - an integer can't be assigned to
             if by_ref:
@@ -718,14 +730,17 @@ class MarsBackend:
             expr_dest, expr_type = self._compile_expression(expr.expr, temp_context)
 
             if not isinstance(expr_type, types.PointerTo):
-                raise CompilerError(0, 0, '(pointer-to-int x) requires x to be a non-function pointer')
+                raise CompilerError(0, 0, '(ptr-to-int x) requires x to be a non-function pointer')
 
             return expr_dest, types.Integer
         elif isinstance(expr, expressions.IntToPointer):
-            # by_ref doesn't make sense, since this cannot be directly assigned
+            # by_ref doesn't make sense - can't assign to the result of an expression
+            if by_ref:
+                raise CompilerError(0, 0, '(int-to-ptr x) is not valid in a ref context')
+
             expr_dest, expr_type = self._compile_expression(expr.expr, temp_context)
 
-            if not expr_type is types.Integer:
+            if expr_type is not types.Integer:
                 raise CompilerError(0, 0, '(int-to-ptr x t) requires x to be an integer')
 
             ret_type = self._resolve_if_type_name(expr.type)
@@ -747,6 +762,7 @@ class MarsBackend:
             byte_align = self._type_alignment(types.Byte)
             dest_offset = temp_context.add_temp(byte_size, byte_align)
 
+            self._write_instr('    lw $t0, {}($fp)', expr_dest)
             self._write_instr('    sll $t0, $t0, 24')
             self._write_instr('    sra $t0, $t0, 24')
             self._write_instr('    sb $t0, {}($fp)', dest_offset)
@@ -766,6 +782,7 @@ class MarsBackend:
             int_align = self._type_alignment(types.Integer)
             dest_offset = temp_context.add_temp(int_size, int_align)
 
+            self._write_instr('    lb $t0, {}($fp)', expr_dest)
             self._write_instr('    sw $t0, {}($fp)', dest_offset)
 
             return dest_offset, types.Integer
@@ -776,7 +793,7 @@ class MarsBackend:
 
             expr_dest, expr_type = self._compile_expression(expr.expr, temp_context)
 
-            if not isinstance(expr_type, types.PointerType):
+            if not isinstance(expr_type, types.PointerTo):
                 raise CompilerError(0, 0, '(cast t x) requires x to be a pointer type')
 
             ret_type = self._resolve_if_type_name(expr.type)
@@ -786,9 +803,9 @@ class MarsBackend:
             return expr_dest, ret_type
         elif isinstance(expr, expressions.Array):
             # by_ref works, since arrays can be assigned to
-            array_dest, array_type = self._compile_expression(expr.array, temp_context)
+            array_dest, array_type = self._compile_expression(expr.array, temp_context, by_ref=True)
 
-            if not isinstance(array_type, types.PointerType):
+            if not isinstance(array_type, types.PointerTo):
                 raise CompilerError(0, 0, '(array x i) requires x to be a pointer type')
 
             index_dest, index_type = self._compile_expression(expr.index, temp_context)
@@ -798,11 +815,17 @@ class MarsBackend:
 
             # We have to account for the fact that the memory used by an element
             # also includes the alignment padding added
-            element_align = self._type_alignment(array_type.type)
-            raw_element_size = self._type_size(array_type.type)
+            element_type = self._resolve_if_type_name(array_type.type)
+            element_align = self._type_alignment(element_type)
+            raw_element_size = self._type_size(element_type)
             element_size = types.align_address(raw_element_size, element_align)
 
-            dest_offset = temp_context.add_temp(raw_element_size, element_align)
+            if by_ref:
+                int_size = self._type_size(types.Integer)
+                int_align = self._type_alignment(types.Integer)
+                dest_offset = temp_context.add_temp(int_size, int_align)
+            else:
+                dest_offset = temp_context.add_temp(raw_element_size, element_align)
 
             # This is an address computation for getting the precise offset to
             # the element in question
@@ -814,19 +837,19 @@ class MarsBackend:
             self._write_instr('    lw $t0, {}($fp)', array_dest)
             self._write_instr('    lw $t1, {}($fp)', index_dest)
             self._write_instr('    li $t2, {}', element_size)
-            self._write_instr('    mul $t1, t2')
+            self._write_instr('    mult $t1, $t2')
             self._write_instr('    mflo $t1')
             self._write_instr('    add $t0, $t0, $t1')
 
             if by_ref:
                 self._write_instr('    sw $t0, {}($fp)', dest_offset)
-                return dest_offset, array_type.type
+                return dest_offset, element_type
             else:
                 self._memcpy('t1', type_size, 
                     't0', 0,
                     'fp', dest_offset)
 
-                return dest_offset, array_type.type
+                return dest_offset, element_type
         elif isinstance(expr, expressions.Field):
             # by_ref makes sense for fields, since the address of the final
             # field can be assigned to
@@ -845,16 +868,21 @@ class MarsBackend:
                     offset = self._field_offset(struct_type, field_name)
                 except KeyError:
                     raise CompilerError(0, 0, 
-                        "No field '{}' in structure {}", field, struct_type)
+                        "No field '{}' in structure {}", field_name, struct_type)
 
-                struct_type = self._resolve_if_type_name(struct_type[field_name])
+                struct_type = self._resolve_if_type_name(struct_type.fields[field_name])
 
                 # If this looks strange, remember that (field s f...) indicates
                 # a nested field, so we're crawling down a nested structure
                 self._write_instr('    addi $t0, $t0, {}', offset)
 
             last_field = expr.fields[-1]
-            last_field_type = struct_type[last_field]
+
+            try:
+                last_field_type = struct_type.fields[last_field]
+            except KeyError:
+                raise CompilerError(0, 0,
+                    "No field '{}' in structure '{}'", last_field, struct_type)
 
             if by_ref:
                 ref_type_size = self._type_size(types.Integer)
@@ -880,11 +908,11 @@ class MarsBackend:
             lhs_dest, lhs_type = self._compile_expression(expr.lhs, temp_context)
             rhs_dest, rhs_type = self._compile_expression(expr.rhs, temp_context)
             
-            if lhs_type is not Integer:
+            if lhs_type is not types.Integer:
                 raise CompilerError(0, 0, 
                     'Arithmetic expression requires integer on LHS')
 
-            if rhs_type is not Integer:
+            if rhs_type is not types.Integer:
                 raise CompilerError(0, 0, 
                     'Arithmetic expression requires integer on RHS')
     
@@ -900,7 +928,7 @@ class MarsBackend:
             elif expr.kind == expressions.ARITH_MINUS:
                 self._write_instr('    sub $t0, $t0, $t1')
             elif expr.kind == expressions.ARITH_TIMES:
-                self._write_instr('    mul $t0, $t1')
+                self._write_instr('    mult $t0, $t1')
                 self._write_instr('    mflo $t0')
             elif expr.kind == expressions.ARITH_DIVIDE:
                 self._write_instr('    div $t0, $t1')
@@ -909,7 +937,7 @@ class MarsBackend:
                 self._write_instr('    div $t0, $t1')
                 self._write_instr('    mfhi $t0')
 
-            self._write_isntr('    sw $t0, {}($fp)', dest_offset)
+            self._write_instr('    sw $t0, {}($fp)', dest_offset)
             return dest_offset, types.Integer
         elif isinstance(expr, expressions.Compare):
             if by_ref:
@@ -957,6 +985,7 @@ class MarsBackend:
             rhs_dest, rhs_type = self._compile_expression(expr.rhs, temp_context)
             
             if lhs_type is not types.Integer:
+                raise CompilerError(0, 0, 
                     'Bitwise expression requires integer on LHS')
 
             if rhs_type is not types.Integer:
@@ -970,15 +999,15 @@ class MarsBackend:
             self._write_instr('    lw $t0, {}($fp)', lhs_dest)
             self._write_instr('    lw $t1, {}($fp)', rhs_dest)
 
-            if isinstance(expr, types.BitAnd):
+            if isinstance(expr, expressions.BitAnd):
                 self._write_instr('    and $t0, $t0, $t1')
-            elif isinstance(expr, types.BitOr):
+            elif isinstance(expr, expressions.BitOr):
                 self._write_instr('    or $t0, $t0, $t1')
-            elif isinstance(expr, types.BitXor):
+            elif isinstance(expr, expressions.BitXor):
                 self._write_instr('    xor $t0, $t0, $t1')
-            elif isinstance(expr, types.BitShiftLeft):
+            elif isinstance(expr, expressions.BitShiftLeft):
                 self._write_instr('    sllv $t0, $t0, $t1')
-            elif isinstance(expr, types.BitShiftRight):
+            elif isinstance(expr, expressions.BitShiftRight):
                 if expr.sign_extend:
                     self._write_instr('    srav $t0, $t0, $t1')
                 else:
@@ -1008,6 +1037,7 @@ class MarsBackend:
             lhs_dest, lhs_type = self._compile_expression(expr.lhs, temp_context)
             
             if lhs_type is not types.Integer:
+                raise CompilerError(0, 0, 
                     'Logical expression requires integer on LHS')
 
             self._write_instr('    lw $t0, {}($fp)', lhs_dest)
@@ -1047,6 +1077,7 @@ class MarsBackend:
             lhs_dest, lhs_type = self._compile_expression(expr.lhs, temp_context)
             
             if lhs_type is not types.Integer:
+                raise CompilerError(0, 0, 
                     'Logical expression requires integer on LHS')
 
             self._write_instr('    lw $t0, {}($fp)', lhs_dest)
@@ -1083,10 +1114,10 @@ class MarsBackend:
                             expr.func.name in BUILTIN_FUNC_NAMES)
 
             if is_builtin:
-                func_dest, func_type = self._compile_expression(expr.func)
-            else:
                 func_dest = None
                 func_type = BUILTIN_FUNCTIONS[expr.func.name]
+            else:
+                func_dest, func_type = self._compile_expression(expr.func, temp_context)
 
             if not isinstance(func_type, types.FunctionPointer):
                 raise CompilerError(0, 0, 'Calls must be either to functions or function pointers')
@@ -1099,15 +1130,15 @@ class MarsBackend:
             rev_param_types = []
 
             func_params = (self._resolve_if_type_name(param_type) for param_type in func_type.params)
-            for param, param_expected_type in reversed(zip(expr.params, func_params)):
-                param_dest, param_real_type = self._compile_expression(expr.param)
+            for param, param_expected_type in reversed(list(zip(expr.params, func_params))):
+                param_dest, param_real_type = self._compile_expression(param, temp_context)
 
-                if not isinstance(param_real_type, param_expected_type):
+                if param_real_type != param_expected_type:
                     raise CompilerError(0, 0, '{} expected in call, got {}', 
                         param_expected_type, param_real_type)
 
-                param_dests.append(param_dest)
-                param_types.append(param_real_type)
+                rev_param_dests.append(param_dest)
+                rev_param_types.append(param_real_type)
 
             if is_builtin:
                 if expr.func.name == '@print-int':
@@ -1127,7 +1158,7 @@ class MarsBackend:
                     self._write_instr('    li $v0, 8')
                     self._write_instr('    syscall')
                 elif expr.func.name == '@sbrk':
-                    self._write_insr('    lw $a0, {}($fp)', rev_param_dests[-1])
+                    self._write_instr('    lw $a0, {}($fp)', rev_param_dests[-1])
                     self._write_instr('    li $v0, 9')
                     self._write_instr('    syscall')
                 elif expr.func.name == '@exit':
@@ -1155,7 +1186,7 @@ class MarsBackend:
             return_type_size = self._type_size(return_type)
             return_type_alignment = self._type_alignment(return_type)
 
-            return_dest = temp_context.add_temp(return_type_size, return_type_align)
+            return_dest = temp_context.add_temp(return_type_size, return_type_alignment)
             
             # Since structure return types are not allowed, the most we'll be
             # copying is a full word
@@ -1182,13 +1213,13 @@ class MarsBackend:
 
             if value_type != assign_type:
                 raise CompilerError(0, 0, 
-                    'Cannot assign {} to {}', value_type, assign_tye)
+                    'Cannot assign {} to {}', value_type, assign_type)
 
             # We have to do a dereference here, since the effect of loading
             # by_ref is that we get an address rather than a value
             self._write_instr('    lw $t0, {}($fp)', assign_dest)
 
-            assign_size = sef._type_size(assign_type)
+            assign_size = self._type_size(assign_type)
             self._memcpy('t1', assign_size,
                 'fp', value_dest,
                 't0', 0)
@@ -1209,7 +1240,12 @@ class MarsBackend:
                 raise CompilerError(0, 0, 'Conditional must be an integer')
 
             self._write_instr('    lw $t0, {}($fp)', cond_dest)
-            self._write_instr('    beq $t0, $0, {}', if_context.else_body)
+
+        # The position outside the context is deliberate - we have to avoid
+        # any situations where the code doesn't execute the stack adjustment
+        # code. In this case, indenting this write call will leave the stack
+        # deeper than it should be, if the branch is taken
+        self._write_instr('    beq $t0, $0, {}', if_context.else_body)
 
     def handle_else(self):
         """
@@ -1245,7 +1281,12 @@ class MarsBackend:
                 raise CompilerError(0, 0, 'Conditional must be an integer')
 
             self._write_instr('    lw $t0, {}($fp)', cond_dest)
-            self._write_instr('    beq $t0, $0, {}', while_context.exit)
+
+        # The position outside the context is deliberate - we have to avoid
+        # any situations where the code doesn't execute the stack adjustment
+        # code. In this case, indenting this write call will leave the stack
+        # deeper than it should be, if the branch is taken
+        self._write_instr('    beq $t0, $0, {}', while_context.exit)
 
     def handle_while_end(self):
         """
@@ -1313,4 +1354,4 @@ def get_backend(output):
     """
     Returns the backend represented by this module.
     """
-    return MARSBackend(output)
+    return MarsBackend(output)
