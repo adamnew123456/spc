@@ -643,40 +643,40 @@ class Driver:
              DECLARATION
              STATEMENT)
         """
-        try:
-            name = definition[1]
-            if isinstance(name, list) or name.type != lexer.IDENTIFIER:
-                raise CompilerError.from_token(definition[0],
-                    'Function definition does not have a valid name')
-
-            params = definition[2]
-            if not isinstance(params, list):
-                raise CompilerError.from_token(definition[0],
-                    'Function definition require a parameter list')
-
-            params = [param.content for param in params]
-            self.backend.handle_func_def_start(name.content, params)
-
-            declaration = definition[3]
-            if not isinstance(declaration, list):
-                raise CompilerError.from_token(definition[3],
-                    'Function definition requires a declaration block')
-
-            if (isinstance(declaration[0], list) or
-                    declaration[0].type != lexer.IDENTIFIER or
-                    declaration[0].content != 'declare'):
-                raise CompilerError.from_token(definition[0],
-                    'Function definition requires a declaration block')
-
-            self.process_declaration(declaration)
-
-            body = definition[4]
-            self.process_statement(body)
-
-            self.backend.handle_func_def_end()
-        except IndexError:
+        if len(definition) != 5:
             raise CompilerError.from_token(definition[0],
                 'Function definition must be of the form (define NAME (PARAMS) DECLARE BODY)')
+
+        name = definition[1]
+        if isinstance(name, list) or name.type != lexer.IDENTIFIER:
+            raise CompilerError.from_token(definition[0],
+                'Function definition does not have a valid name')
+
+        params = definition[2]
+        if not isinstance(params, list):
+            raise CompilerError.from_token(definition[0],
+                'Function definition require a parameter list')
+
+        params = [param.content for param in params]
+        self.backend.handle_func_def_start(name.content, params)
+
+        declaration = definition[3]
+        if not isinstance(declaration, list):
+            raise CompilerError.from_token(definition[3],
+                'Function definition requires a declaration block')
+
+        if (isinstance(declaration[0], list) or
+                declaration[0].type != lexer.IDENTIFIER or
+                declaration[0].content != 'declare'):
+            raise CompilerError.from_token(definition[0],
+                'Function definition requires a declaration block')
+
+        self.process_declaration(declaration)
+
+        body = definition[4]
+        self.process_statement(body)
+
+        self.backend.handle_func_def_end()
 
     def compile(self):
         """
