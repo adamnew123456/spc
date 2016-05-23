@@ -289,6 +289,8 @@ class MarsBackend:
             # the struct's internal alignment doesn't come into play
             struct_types = type_obj.fields.values()
             return self._type_alignment(next(struct_types))
+        else:
+            raise TypeError('Not a compiler type: {}'.format(type_obj))
 
     def _field_offset(self, struct_type, field_name):
         """
@@ -348,6 +350,8 @@ class MarsBackend:
 
             last_field_offset = self._field_offset(type_obj, last_field)
             return last_field_offset + self._type_size(last_field_type)
+        else:
+            raise TypeError('Not a compiler type: {}'.format(type_obj))
 
     def _check_valid_types(self, type_objs):
         """
@@ -523,6 +527,9 @@ class MarsBackend:
             func_defn = self.current_context.value_defns[name]
         except KeyError as exn:
             raise CompilerError(0, 0, 'Undefined function "{}"', name)
+
+        if not isinstance(func_defn, types.FunctionDecl):
+            raise CompilerError(0, 0, 'Value {} is not a function', name)
 
         self._push_context()
 
