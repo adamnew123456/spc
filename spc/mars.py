@@ -733,6 +733,42 @@ class MarsBackend:
                 raise CompilerError(0, 0, '(int-to-ptr x t) requires t to be pointer type')
 
             return expr_dest, ret_type
+        elif isinstance(expr, expressions.IntToByte):
+            # by_ref doesn't work, again because this can't be assigned to directly
+            if by_ref:
+                raise CompilerError(0, 0, '(int-to-byte x) is not valid in a ref context')
+
+            expr_dest, expr_type = self._compile_expression(expr.expr, temp_context)
+            
+            if expr_type is not types.Integer:
+                raise CompilerError(0, 0, '(int-to-byte x) requires x to be an integer')
+
+            byte_size = self._type_size(types.Byte)
+            byte_align = self._type_alignment(types.Byte)
+            dest_offset = temp_context.add_temp(byte_size, byte_align)
+
+            self._write_instr('    sll $t0, $t0, 24')
+            self._write_instr('    sra $t0, $t0, 24')
+            self._write_instr('    sb $t0, {}($fp)', dest_offset)
+
+            return dest_offset, types.Byte
+        elif isinstance(expr, expressions.ByteToInt):
+            # by_ref doesn't work, again because this can't be assigned to directly
+            if by_ref:
+                raise CompilerError(0, 0, '(byte-to-int x) is not valid in a ref context')
+
+            expr_dest, expr_type = self._compile_expression(expr.expr, temp_context)
+            
+            if expr_type is not types.Byte:
+                raise CompilerError(0, 0, '(byte-to-int x) requires x to be an byte')
+
+            int_size = self._type_size(types.Integer)
+            int_align = self._type_alignment(types.Integer)
+            dest_offset = temp_context.add_temp(int_size, int_align)
+
+            self._write_instr('    sw $t0, {}($fp)', dest_offset)
+
+            return dest_offset, types.Integer
         elif isinstance(expr, expressions.Cast):
             # by_ref doesn't work, again because this can't be assigned to directly
             if by_ref:

@@ -35,6 +35,9 @@ PointerToInt = namedtuple('PointerToInt', ['expr'])
 IntToPointer = namedtuple('IntToPointer', ['type', 'expr'])
 Cast = namedtuple('Cast', ['type', 'expr'])
 
+ByteToInt = namedtuple('ByteToInt', ['expr'])
+IntToByte = namedtuple('IntToByte', ['expr'])
+
 Array = namedtuple('Array', ['array', 'index'])
 Field = namedtuple('Field', ['struct', 'fields'])
 

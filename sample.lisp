@@ -88,6 +88,9 @@
  ;;  (cast T E) casts the pointer produced by E to another type T
  ;;
  ;; Getting the size of a type is accomplished via (size-of T)
+ ;;
+ ;; Truncate/expand bytes <-> integers:
+ ;;  (byte-to-int E) and (int-to-byte E)
  (block
   (set list (ptr-to-int (@sbrk (size-of linked-ints))))
   (set (field list value) head)
@@ -153,6 +156,8 @@
   (set list (int-to-ptr 0 linked-ints-ptr))
   (set read-value 1)
   
+  (set (array newline 0) (int-to-byte 10))
+  (set (array newline 1) (int-to-byte 0))
   (set (array newline 0) 10)
   (set (array newline 1) 0)
 
