@@ -318,6 +318,7 @@ class MarsBackend:
         into account the size and alignment of internal elements.
         """
         base_size = self._type_size(array_type.type)
+        alignment = self._type_alignment(array_type.type)
         aligned_size = types.align_address(base_size, alignment)
         return aligned_size * index
 
@@ -533,7 +534,11 @@ class MarsBackend:
 
         self._push_context()
 
-        for param, param_type in zip(self.params, func_defn.params):
+        if len(params) != len(func_defn.params):
+            raise CompilerError(0, 0, 'Type has {} params, definition has {}',
+                len(params), len(func_defn.params))
+
+        for param, param_type in reversed(list(zip(params, func_defn.params))):
             param_type = self._resolve_if_type_name(param_type)
 
             type_size = self._type_size(param_type)
@@ -570,6 +575,7 @@ class MarsBackend:
         self._pop_context()
 
         self.in_function = False
+        self.read_func_decls = False
         self.func_exit_label = None
         self.func_ret_type = None
 
@@ -678,8 +684,8 @@ class MarsBackend:
                 by_ref = True
 
             if by_ref:
-                type_size = self._type_size(types.PointerTo(type_of))
-                type_align = self._type_alignment(types.PointerTo(type_of))
+                type_size = self._type_size(types.Integer)
+                type_align = self._type_alignment(types.Integer)
             else:
                 type_size = self._type_size(type_of)
                 type_align = self._type_alignment(type_of)
