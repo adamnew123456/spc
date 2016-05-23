@@ -4,11 +4,11 @@ All the different types that the compiler handles.
 from collections import namedtuple
 from enum import Enum
 
-IntegerType = namedtuple('IntegerType', [])
-Integer = IntegerType()
+IntegerType = namedtuple('IntegerType', ['unique'])
+Integer = IntegerType('integer')
 
-ByteType = namedtuple('ByteType', [])
-Byte = ByteType()
+ByteType = namedtuple('ByteType', ['unique'])
+Byte = ByteType('byte')
 
 PointerTo = namedtuple('PointerTo', ['type'])
 FunctionPointer = namedtuple('FunctionPointer', ['return_type', 'params'])
