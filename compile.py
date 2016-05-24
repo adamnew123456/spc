@@ -4,29 +4,32 @@ import sys
 
 from spc import driver, errors, lexer
 
+USAGE = 'python3 compile.py -b BACKEND [-o OUTPUT] [INPUT]'
+
 BACKEND = None
 IN_FILE = sys.stdin
 OUT_FILE = sys.stdout
 
-FLAGS, POS_ARGS = getopt.getopt(sys.argv[1:], 'b:o:')
+FLAGS, POS_ARGS = getopt.getopt(sys.argv[1:], 'hb:o:')
 for opt, arg in FLAGS:
-    if opt == '-b':
+    if opt == '-h':
+        print(USAGE)
+        sys.exit(0)
+    elif opt == '-b':
         try:
             BACKEND = importlib.import_module('spc.' + arg)
         except ImportError as err:
             print('Invalid backend:', arg, file=sys.stderr)
-            print('::', err, file=sys.stderr)
             sys.exit(1)
     elif opt == '-o':
         try:
             OUT_FILE = open(arg, 'w')
         except IOError as err:
             print('Cannot open output file:', arg, file=sys.stderr)
-            print('::', err, file=sys.stderr)
             sys.exit(1)
 
 if BACKEND is None:
-    print('-b BACKEND argument required', file=sys.stderr)
+    print(USAGE, file=sys.stderr)
     sys.exit(1)
 
 if POS_ARGS:
