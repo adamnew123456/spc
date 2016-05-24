@@ -588,8 +588,8 @@ class MarsBackend:
             raise CompilerError(0, 0, 'Type has {} params, definition has {}',
                 len(params), len(func_defn.params))
 
-        for param, param_type in reversed(list(zip(params, func_defn.params))):
         self._write_comment('== Binding parameters ==')
+        for param, param_type in zip(params, func_defn.params):
             param_type = self._resolve_if_type_name(param_type)
 
             type_size = self._type_size(param_type)
