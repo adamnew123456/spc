@@ -24,6 +24,12 @@ def is_integer(token):
     """
     return isinstance(token, lexer.Token) and token.type == lexer.INTEGER
 
+def is_string(token):
+    """
+    Returns True if the token is a single string token.
+    """
+    return isinstance(token, lexer.Token) and token.type == lexer.STRING
+
 class Backend:
     """
     A skeleton backend which has all the methods used by the driver.
@@ -197,6 +203,7 @@ class Driver:
         """
         Parses normal types, in addition to the forms:
 
+            (ascii STRING): Which indicates a literal string
             (array-of TYPE SIZE): Which indicates an array of the given type
             (function TYPE TYPE*): Which indicates a function declaration
             (struct (IDENTIFIER TYPE)+): Which indicates a structure definition
@@ -209,7 +216,18 @@ class Driver:
             raise CompilerError.from_token(chunk[0],
                 'Invalid declaration type')
 
-        if chunk[0].content == 'array-of':
+        if chunk[0].content == 'ascii':
+            if len(chunk) != 2:
+                raise CompilerError.from_token(chunk[0],
+                    'ascii must be of the form (ascii STRING)')
+
+            string_literal = chunk[1]
+            if not is_string(string_literal):
+                raise CompilerError.from_token(chunk[0],
+                    'ascii must be of the form (ascii STRING)')
+
+            return types.StringLiteral(string_literal.content)
+        elif chunk[0].content == 'array-of':
             if len(chunk) != 3:
                 raise CompilerError.from_token(chunk[0],
                     'array-of must be of the form (array-of TYPE NUMBER)')

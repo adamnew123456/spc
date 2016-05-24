@@ -5,6 +5,7 @@ Lexes Lisp-like S-expression languages into one of a few tokens:
  - RIGHT_PAREN
  - NUM_INTEGER
  - IDENTIFIER
+ - STRING
 """
 from collections import deque, namedtuple
 import logging
@@ -12,7 +13,7 @@ import logging
 LOGGER = logging.getLogger('spc.lexer')
 
 (LEFT_PAREN, RIGHT_PAREN,
- INTEGER, IDENTIFIER) = range(4)
+ INTEGER, IDENTIFIER, STRING) = range(5)
 
 Token = namedtuple('Token', ['type', 'content', 'line', 'column'])
 
@@ -155,6 +156,29 @@ class Lexer:
                 if char is None:
                     break
 
+    def read_string(self):
+        """
+        Reads in a double-quoted string.
+
+        Note that this actually preserves C-style escapes; since the assembler
+        will also likely support C-style escapes, there's no need to make the
+        backend do extra work to undo them later.
+        """
+        buffer = ''
+        escaped = False
+
+        while True:
+            char = self.get()
+            if escaped:
+                buffer += "\\" + char
+                escaped = False
+            elif char == '"':
+                break
+            else:
+                buffer += char
+
+        return self.get_token(STRING, buffer.encode('ascii'))
+
     def lex(self):
         """
         Lexes an input stream, producing a generator of Token objects.
@@ -174,6 +198,10 @@ class Lexer:
                 yield token
             elif char == ')':
                 token = self.get_token(RIGHT_PAREN, char)
+                LOGGER.info('Token: %s', token)
+                yield token
+            elif char == '"':
+                token = self.read_string()
                 LOGGER.info('Token: %s', token)
                 yield token
             else:

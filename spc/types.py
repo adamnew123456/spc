@@ -28,6 +28,9 @@ FunctionDecl = namedtuple('FunctionDecl', ['return_type', 'params'])
 # a declaration to allocate a certain amount of space somewhere
 ArrayOf = namedtuple('ArrayOf', ['type', 'count'])
 
+# The same as (array-of byte ...), but prefilled with ASCII data
+StringLiteral = namedtuple('StringLiteral', ['bytes'])
+
 AliasDef = namedtuple('AliasDef', ['type'])
 
 # Raw types are types which can be used as variables

@@ -11,6 +11,16 @@ from .errors import CompilerError
 from . import expressions
 from . import types
 
+def unescape_bytes(bytestr):
+    """
+    Returns a variant of the given bytestring that has C escapes replaced
+    with their ASCII values.
+
+    >>> unescape_bytes(b'\\0')
+    b'\x00'
+    """
+    return bytestr.decode('unicode_escape')
+
 LOGGER = logging.getLogger('spc.mars')
 
 # An infinite stream of fresh labels for the backend
@@ -498,7 +508,27 @@ class MarsBackend:
         was_type_name = isinstance(decl_type, types.TypeName)
         decl_type = self._resolve_if_type_name(decl_type)
 
-        if was_type_name or isinstance(decl_type, types.RAW_TYPES):
+        if isinstance(decl_type, types.StringLiteral):
+            self._write_comment('  Declaring string {}', name)
+
+            escaped = unescape_bytes(decl_type.bytes).encode('ascii')
+            self.current_context.value_defns[name] = types.PointerTo(types.Byte)
+            self.current_context.array_bound[name] = True
+
+            if self.in_function:
+                # We can't really use .asciiz in a function, so we'll have to
+                # make do with copying bytes manually
+                escaped += b'\0'
+                self.current_context.func_stack.add_local(name, len(escaped), 1)
+                base_addr = self.current_context.func_stack.local_offset
+                for idx, byte in enumerate(escaped):
+                    self._write_instr('    li $t0, {}', byte)
+                    self._write_instr('    sb $t0, {}($fp)', base_addr + idx)
+            else:
+                self._write_instr('{}:', mangle_label(name))
+                self._write_instr('    .asciiz "{}"',
+                    decl_type.bytes.decode('ascii'))
+        elif was_type_name or isinstance(decl_type, types.RAW_TYPES):
             self._write_comment('  Declaring variable {} :: {}', name, decl_type)
 
             was_array = isinstance(decl_type, types.ArrayOf)
