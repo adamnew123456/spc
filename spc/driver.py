@@ -414,8 +414,8 @@ class Driver:
                     raise CompilerError.from_token(expr[0],
                         'byte-to-int must be of the form (byte-to-int EXPR)')
 
-                expr = self.parse_expression(expr[2])
-                return expressoins.ByteToInt(expr)
+                expr = self.parse_expression(expr[1])
+                return expressions.ByteToInt(expr)
             elif expr[0].content == 'cast':
                 if len(expr) != 3:
                     raise CompilerError.from_token(expr[0],
