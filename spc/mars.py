@@ -260,6 +260,20 @@ class MarsBackend:
         """
         print('#', fmt.format(*args, **kwargs), file=self.output_stream)
 
+    class comment_after:
+        def __init__(self, fmt, *args, **kwargs):
+            self.fmt = fmt
+            self.args = args
+            self.kwargs = kwargs
+
+        def __call__(self, func):
+            def wrapper(parent, *args, **kwargs):
+                x = func(parent, *args, **kwargs)
+                parent._write_comment(self.fmt, *self.args, **self.kwargs)
+                return x
+
+            return wrapper
+
     def _resolve_if_type_name(self, name):
         """
         Resolves a type name into a concrete type.
@@ -396,7 +410,13 @@ class MarsBackend:
             if isinstance(type_obj, (types.PointerTo, types.ArrayOf)):
                 check(type_obj.type)
             elif isinstance(type_obj, types.Struct):
-                for field_type in type_obj.fields.values():
+                self._write_comment('== Structure Layout ==')
+                self._write_comment('  Type: {}', type_obj)
+
+                for field_name, field_type in type_obj.fields.items():
+                    offset = self._field_offset(type_obj, field_name)
+                    self._write_comment('  Field "{}" Offset: {}', field_name, offset)
+
                     check(field_type)
             elif isinstance(type_obj, (types.FunctionDecl, types.FunctionPointer)):
                 check(type_obj.return_type)
@@ -464,6 +484,8 @@ class MarsBackend:
 
             self.read_func_decls = True
 
+        self._write_comment('== Binding declarations ==')
+
     def handle_decl(self, name, decl_type):
         """
         Handles declarations inside of a declaration block.
@@ -477,6 +499,8 @@ class MarsBackend:
         decl_type = self._resolve_if_type_name(decl_type)
 
         if was_type_name or isinstance(decl_type, types.RAW_TYPES):
+            self._write_comment('  Declaring variable {} :: {}', name, decl_type)
+
             was_array = isinstance(decl_type, types.ArrayOf)
             self.current_context.value_defns[name] = types.decay_if_array(decl_type)
 
@@ -485,9 +509,14 @@ class MarsBackend:
                 type_size = self._type_size(decl_type)
                 alignment = self._type_alignment(decl_type)
                 self.current_context.func_stack.add_local(name, type_size, alignment)
+
+                self._write_comment('  At offset: {}($fp)', 
+                    self.current_context.func_stack.local_offset)
             else:
                 # Raw types have to be allocated space inside of .data 
                 # and given a label
+                self._write_comment('  As a global')
+
                 label = mangle_label(name)
                 self._write_instr('{}:', label)
 
@@ -500,6 +529,7 @@ class MarsBackend:
         elif isinstance(decl_type, types.Struct):
             # Structure types are treated as structure definitions, which 
             # bind a type definition
+            self._write_comment('  Declaring structure {} :: {}', name, decl_type)
             self.current_context.type_defns[name] = decl_type
         elif isinstance(decl_type, types.FunctionDecl):
             # Function declarations signify a function that is defined 
@@ -507,9 +537,11 @@ class MarsBackend:
             if self.in_function:
                 raise CompilerError(0, 0, 'Cannot declare nested functions')
 
+            self._write_comment('  Declaring function {} :: {}', name, decl_type)
             self.current_context.value_defns[name] = decl_type
         elif isinstance(decl_type, types.AliasDef):
             # Alias definitions bind an existing type to a new name
+            self._write_comment('  Declaring alias {} => {}', name, decl_type.type)
             self.current_context.type_defns[name] = decl_type.type
 
     def handle_decl_block_end(self):
@@ -557,12 +589,15 @@ class MarsBackend:
                 len(params), len(func_defn.params))
 
         for param, param_type in reversed(list(zip(params, func_defn.params))):
+        self._write_comment('== Binding parameters ==')
             param_type = self._resolve_if_type_name(param_type)
 
             type_size = self._type_size(param_type)
             alignment = self._type_alignment(param_type)
             self.current_context.func_stack.add_param(param, type_size, alignment)
 
+            self._write_comment('  Declaring parameter {} :: {} at {}($fp)', 
+                param, param_type, self.current_context.func_stack.param_offset - type_size)
             self.current_context.value_defns[param] = param_type
 
         self.func_ret_type = self._resolve_if_type_name(func_defn.return_type)
@@ -634,13 +669,14 @@ class MarsBackend:
             self._write_instr('    lb ${}, {}(${})', tmp_reg, byte + src_start_offset, src_start_reg)
             self._write_instr('    sb ${}, {}(${})', tmp_reg, byte + dest_start_offset, dest_start_reg)
 
+    @comment_after('== End ==')
     def _compile_expression(self, expr, temp_context, by_ref=False):
         """
         Unwraps an expression into a series of temporary assignments, putting
         the final result onto a position on the stack.
 
-        Returns a tuple indicating the type of the expression, and the
-        expression's offset on the stack.
+        Returns a tuple indicating the offset of the expression's result 
+        (relative to $fp) and the type of the result.
 
         This can behave one of two ways:
 
@@ -672,6 +708,9 @@ class MarsBackend:
         # The litmus test for whether or not something can be used in a ref 
         # context is whether it makes sense to assign to it. In this way, it is
         # similar to the lvalue/rvalue distinction in C (but a bit more liberal)
+        self._write_comment('== Compiling Expression ==')
+        self._write_comment('  Expression: {}', expr)
+        self._write_comment('  by_ref? {}', by_ref)
 
         if isinstance(expr, expressions.Variable):
             # by_ref obviously makes sense - otherwise, assignment to a variable
@@ -695,6 +734,7 @@ class MarsBackend:
 
                 # Set the flag anyway, since trying to load a function 
                 # 'by value' would load code, which doesn't make sense
+                self._write_comment('  Variable load: function pointer {}', expr.name)
                 by_ref = True
 
             if (isinstance(type_of, types.PointerTo) and 
@@ -707,6 +747,7 @@ class MarsBackend:
                 if by_ref:
                     raise CompilerError(0, 0, 'Cannot use array in a ref context')
 
+                self._write_comment('  Variable load: array {}', expr.name)
                 by_ref = True
 
             if by_ref:
@@ -771,8 +812,8 @@ class MarsBackend:
                 type_size = self._type_size(expr_type.type)
                 type_align = self._type_alignment(expr_type.type)
                 dest_offset = temp_context.add_temp(type_size, type_align)
-                self._write_instr('    lw $t0, {}($fp)', expr_dest)
 
+                self._write_instr('    lw $t0, {}($fp)', expr_dest)
                 self._memcpy_opt('t1', expr_type.type,
                     't0', 0, 
                     'fp', dest_offset)
@@ -1259,6 +1300,10 @@ class MarsBackend:
         """
         Handles an assignment from an expression to an assignable target.
         """
+        self._write_comment('==== Assign ====')
+        self._write_comment('  From: {}', expression)
+        self._write_comment('  To: {}', assignable)
+
         temp_context = self.current_context.func_stack.get_temp_context(self)
         with temp_context:
             assign_dest, assign_type = (
@@ -1284,6 +1329,9 @@ class MarsBackend:
         """
         Handles the start of an if statement.
         """
+        self._write_comment('====== If ======')
+        self._write_comment('  Condition: {}', cond)
+
         if_context = IfLabels(next(LABEL_MAKER), next(LABEL_MAKER))
         self.if_labels.append(if_context)
 
@@ -1307,6 +1355,8 @@ class MarsBackend:
         """
         Handles the end of the 'then' part of an if statement
         """
+        self._write_comment('====== Else ======')
+
         if_context = self.if_labels[-1]
         self._write_instr('    j {}', if_context.end)
         self._write_instr('{}:', if_context.else_body)
@@ -1315,6 +1365,8 @@ class MarsBackend:
         """
         Handles the end of an if block
         """
+        self._write_comment('====== End If ======')
+
         if_context = self.if_labels[-1]
         self._write_instr('{}:', if_context.end)
         self.if_labels.pop()
@@ -1323,6 +1375,9 @@ class MarsBackend:
         """
         Handles the start of a while loop.
         """
+        self._write_comment('====== While ======')
+        self._write_comment('  Condition: {}', cond)
+
         while_context = WhileLabels(next(LABEL_MAKER), next(LABEL_MAKER))
         self.while_labels.append(while_context)
 
@@ -1348,6 +1403,8 @@ class MarsBackend:
         """
         Handles the end of a while loop.
         """
+        self._write_comment('====== While End ======')
+
         while_context = self.while_labels[-1]
         self._write_instr('    j {}', while_context.cond)
         self._write_instr('{}:', while_context.exit)
@@ -1356,6 +1413,7 @@ class MarsBackend:
         """
         Handles breaking out of a while loop.
         """
+        self._write_comment('==== Break ====')
         try:
             while_context = self.while_labels[-1]
         except IndexError:
@@ -1367,6 +1425,7 @@ class MarsBackend:
         """
         Handles continuing at the top of a while loop.
         """
+        self._write_comment('==== Continue  ====')
         try:
             while_context = self.while_labels[-1]
         except IndexError:
@@ -1378,6 +1437,9 @@ class MarsBackend:
         """
         Handles returning values from functions.
         """
+        self._write_comment('==== Return ====')
+        self._write_comment('  Return: {}', expr)
+
         temp_context = self.current_context.func_stack.get_temp_context(self)
         with temp_context:
             ret_dest, ret_type = (
@@ -1403,6 +1465,9 @@ class MarsBackend:
         """
         Handles an expression that isn't enclosed in a statement.
         """
+        self._write_comment('==== Raw Expression ====')
+        self._write_comment('  Expression: {}', expr)
+
         temp_context = self.current_context.func_stack.get_temp_context(self)
         with temp_context:
             self._compile_expression(expr, temp_context)
