@@ -960,44 +960,35 @@ class MarsBackend:
                 raise CompilerError(0, 0, '(field s f...) requires that s be a structure')
 
             self._write_instr('    lw $t0, {}($fp)', struct_dest)
-            for field_name in expr.fields[:-1]:
+            total_offset = 0
+
+            for field_name in expr.fields:
                 try:
-                    offset = self._field_offset(struct_type, field_name)
+                    total_offset += self._field_offset(struct_type, field_name)
                 except KeyError:
                     raise CompilerError(0, 0, 
                         "No field '{}' in structure {}", field_name, struct_type)
 
                 struct_type = self._resolve_if_type_name(struct_type.fields[field_name])
 
-                # If this looks strange, remember that (field s f...) indicates
-                # a nested field, so we're crawling down a nested structure
-                self._write_instr('    addi $t0, $t0, {}', offset)
-
-            last_field = expr.fields[-1]
-
-            try:
-                last_field_type = struct_type.fields[last_field]
-            except KeyError:
-                raise CompilerError(0, 0,
-                    "No field '{}' in structure '{}'", last_field, struct_type)
-
             if by_ref:
                 ref_type_size = self._type_size(types.Integer)
                 ref_type_align = self._type_alignment(types.Integer)
                 dest_offset = temp_context.add_temp(ref_type_size, ref_type_align)
 
+                self._write_instr('    add $t0, $t0, {}', total_offset)
                 self._write_instr('    sw $t0, {}($fp)', dest_offset)
-                return dest_offset, last_field_type
+                return dest_offset, struct_type
             else:
-                last_field_size = self._type_size(last_field_type)
-                last_field_align = self._type_alignment(last_field_type)
+                last_field_size = self._type_size(struct_type)
+                last_field_align = self._type_alignment(struct_type)
                 dest_offset = temp_context.add_temp(last_field_size, last_field_align)
 
-                self._memcpy_opt('t1', last_field_type,
-                    't0', 0,
+                self._memcpy_opt('t1', struct_type,
+                    't0', total_offset,
                     'fp', dest_offset)
 
-                return dest_offset, last_field_type
+                return dest_offset, struct_type
         elif isinstance(expr, expressions.Arithmetic):
             if by_ref:
                 raise CompilerError(0, 0, 'Cannot use arithmetic result in a ref context')
