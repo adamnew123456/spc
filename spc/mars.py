@@ -616,7 +616,7 @@ class MarsBackend:
 
         if len(params) != len(func_defn.params):
             raise CompilerError(0, 0, 'Type has {} params, definition has {}',
-                len(params), len(func_defn.params))
+                len(func_defn.params), len(params))
 
         self._write_comment('== Binding parameters ==')
         for param, param_type in zip(params, func_defn.params):
@@ -1242,7 +1242,7 @@ class MarsBackend:
 
             if len(expr.params) != len(func_type.params):
                 raise CompilerError(0, 0, '{} expected {} params, got {}', 
-                        func_type, len(func_type.params), type(expr.params))
+                        func_type, len(func_type.params), len(expr.params))
 
             rev_param_dests = []
             rev_param_types = []
