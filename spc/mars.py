@@ -254,6 +254,12 @@ class MarsBackend:
         """
         print(fmt.format(*args, **kwargs), file=self.output_stream)
 
+    def _write_comment(self, fmt, *args, **kwargs):
+        """
+        Writes a code comment to the output stream.
+        """
+        print('#', fmt.format(*args, **kwargs), file=self.output_stream)
+
     def _resolve_if_type_name(self, name):
         """
         Resolves a type name into a concrete type.
@@ -451,7 +457,6 @@ class MarsBackend:
                 raise CompilerError(0, 0, 'Cannot have >1 top-level declaration blocks')
 
             self.read_top_decls = True
-
             self._write_instr('.data')
         else:
             if self.read_func_decls:
@@ -613,10 +618,6 @@ class MarsBackend:
         the input value is of the right type.
         """
         if isinstance(type_obj, (types.IntegerType, types.PointerTo, types.FunctionPointer)):
-            self._write_comment('Optimized int copy from ${}+{} to ${}+{}',
-                    src_start_reg, src_start_offset, 
-                    dest_start_reg, dest_start_offset)
-
             self._write_instr('    lw ${}, {}(${})', tmp_reg, src_start_offset, src_start_reg)
             self._write_instr('    sw ${}, {}(${})', tmp_reg, dest_start_offset, dest_start_reg)
         else:
@@ -1388,6 +1389,7 @@ class MarsBackend:
             # Since we're barred from returning structures, the most we'll
             # have to deal with is words
             ret_type_size = self._type_size(ret_type)
+
             if ret_type_size == 1:
                 self._write_instr('    lb $v0, {}($fp)', ret_dest)
             elif ret_type_size == 2:
