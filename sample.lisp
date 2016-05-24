@@ -16,10 +16,13 @@
 ;; handling for no real benefit - just return a 'byte'.
 ;;
 ;; General combined types:
-;;  (pointer-to T) where T is a type
-;;  (array-of T N) where T is a type and N is a positive integer
-;;    Note that array-of immediately decays into a pointer.
-;;  (func-pointer R T*) where R is the return type and T is a parameter type.
+;;  (pointer-to T) indicates a pointer to the type T.
+;;  (array-of T N) allocates an array of size N, with elements of the type T.
+;;  (ascii S) declares a string. Strings are delimited by ", C-style escapes
+;;    allowed. Note that strings are not expressions, so you can't use them
+;;    anywhere else but here.
+;;  (func-pointer R P*) is a pointer to a function which takes the parameter
+;;    types P and returns the type R.
 ;;
 ;; Types which can appear only in declarations:
 ;;  (function R T*) where R is a type (the return type)
@@ -43,6 +46,7 @@
 ;;  - Defining structures via struct
 ;;  - Binding type aliases via alias
 ;;  - Declaring function signatures via function
+;;  - Declaring string constants
 ;;  - Defining variables (via the other types)
 
 (declare
@@ -72,9 +76,9 @@
 ;; - All functions must have a declare block before their bodies, even if it is
 ;;   empty
 ;; - They can't return structures directly (this alleviates some complications
-;;   in the function call / return handling)
+;;   in the function call / return handling code)
 ;; - They can't take arrays as parameters, or return them, since there isn't a
-;;   way to get a value of an array type, since they decay immediately
+;;   way to get a value of an array type, because they decay immediately
 (define cons-linked-ints (head tail)
  (declare
   (list linked-ints-ptr))
@@ -105,6 +109,9 @@
   ;; Assignments take the form:
   ;;
   ;;  (set A E) updates assignable target A with the value in V.
+  ;;  
+  ;;  Assignable targets include (array ...), (field ...), (deref ...) as 
+  ;;  well as  variables
   ;;
   (set sum 0)
 
@@ -130,7 +137,7 @@
     ;;   (field E F+) gets the value of a structure E by traversing the fields F.
     ;;     The C equivalent is (e).f1.f2.f3.etc.fn
     ;;
-    ;; Arithmetic (do the same as in C)
+    ;; Arithmetic (same as in C, however, there is no pointer arithmetic)
     ;;  + - * / % & | ~ << >> >>>
     ;;
     ;; Logical expressions:
