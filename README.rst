@@ -25,9 +25,6 @@ It is only of interest for educational purposes, since it is:
   share code across files without hacking in extern directives yourself. Whether
   I fix this is a tossup - I want to add namespaces, and if I can find the time
   to do them, I'll probably fix this issue then as well.
-- Error Reporting: Most errors use the line and column number 0, 0 because
-  the driver doesn't inform the backend of locations in the file. This is
-  one of the higher priority things to fix.
 
 Other than that, it produces code for a language which is pretty much on the
 same abstractive level as C - but, the language is organized explicitly to be
