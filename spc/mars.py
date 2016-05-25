@@ -228,6 +228,8 @@ class MarsBackend:
     Emits MIPS assembly code compatible with the MARS simulator.
     """
     def __init__(self, output):
+        self.line = 0
+        self.col = 0
         self.output_stream = output
 
         program_vals = SymbolTable(BUILTIN_FUNCTIONS, is_global=True)
@@ -299,12 +301,12 @@ class MarsBackend:
                 name = self.current_context.type_defns[name.name]
 
                 if current_depth > MAX_DEPTH:
-                    raise CompilerError(0, 0, 
+                    raise CompilerError(self.line, self.col,
                         'Type aliases too deep, when resolving "{}"', start_name.name)
 
             return name
         except KeyError:
-            raise CompilerError(0, 0, 'Invalid type "{}"', name)
+            raise CompilerError(self.line, self.col, 'Invalid type "{}"', name)
 
     def _type_alignment(self, type_obj):
         """
@@ -367,7 +369,7 @@ class MarsBackend:
         MAX_DEPTH = 100
 
         if depth >= MAX_DEPTH:
-            raise CompilerError(0, 0, 
+            raise CompilerError(self.line, self.col,
                 "Type nested too deeply - potential self-referential type")
 
         type_obj = self._resolve_if_type_name(type_obj)
@@ -444,13 +446,20 @@ class MarsBackend:
                     # And simply have the caller provide a structure to 
                     # pre-populate. By doing this, we can avoid having to deal
                     # with the obvious question "where do we put this thing?"
-                    raise CompilerError(0, 0, 'Cannot return struct from function')
+                    raise CompilerError(self.line, self.col, 'Cannot return struct from function')
 
                 for param in type_obj.params:
                     check(type_obj.params)
 
             # Anything not in those categories is a value type, and is valid
             # because it doesn't reference any other types
+
+    def update_position(self, line, col):
+        """
+        Called to update the current position in the program file.
+        """
+        self.line = line
+        self.col = col
 
     def handle_begin_program(self):
         """
@@ -484,13 +493,13 @@ class MarsBackend:
         """
         if not self.in_function:
             if self.read_top_decls:
-                raise CompilerError(0, 0, 'Cannot have >1 top-level declaration blocks')
+                raise CompilerError(self.line, self.col, 'Cannot have >1 top-level declaration blocks')
 
             self.read_top_decls = True
             self._write_instr('.data')
         else:
             if self.read_func_decls:
-                raise CompilerError(0, 0, 'Cannot have >1 function declaration blocks')
+                raise CompilerError(self.line, self.col, 'Cannot have >1 function declaration blocks')
 
             self.read_func_decls = True
 
@@ -565,7 +574,7 @@ class MarsBackend:
             # Function declarations signify a function that is defined 
             # somewhere
             if self.in_function:
-                raise CompilerError(0, 0, 'Cannot declare nested functions')
+                raise CompilerError(self.line, self.col, 'Cannot declare nested functions')
 
             self._write_comment('  Declaring function {} :: {}', name, decl_type)
             self.current_context.value_defns[name] = decl_type
@@ -607,15 +616,15 @@ class MarsBackend:
         try:
             func_defn = self.current_context.value_defns[name]
         except KeyError as exn:
-            raise CompilerError(0, 0, 'Undefined function "{}"', name)
+            raise CompilerError(self.line, self.col, 'Undefined function "{}"', name)
 
         if not isinstance(func_defn, types.FunctionDecl):
-            raise CompilerError(0, 0, 'Value {} is not a function', name)
+            raise CompilerError(self.line, self.col, 'Value {} is not a function', name)
 
         self._push_context()
 
         if len(params) != len(func_defn.params):
-            raise CompilerError(0, 0, 'Type has {} params, definition has {}',
+            raise CompilerError(self.line, self.col, 'Type has {} params, definition has {}',
                 len(func_defn.params), len(params))
 
         self._write_comment('== Binding parameters ==')
@@ -748,7 +757,7 @@ class MarsBackend:
 
             owning_scope = self.current_context.value_defns.find(expr.name)
             if owning_scope is None:
-                raise CompilerError(0, 0, 'No variable "{}" in scope', expr.name)
+                raise CompilerError(*expr.loc, 'No variable "{}" in scope', expr.name)
 
             type_of = owning_scope[expr.name]
             if isinstance(type_of, types.TypeName):
@@ -758,7 +767,7 @@ class MarsBackend:
                 if by_ref:
                     # You can't logically assign to the address you get back, so
                     # it doesn't make sense to even try
-                    raise CompilerError(0, 0, 'Cannot use function in a ref context')
+                    raise CompilerError(*expr.loc, 'Cannot use function in a ref context')
 
                 type_of = types.func_decl_to_ptr(type_of)
 
@@ -775,7 +784,7 @@ class MarsBackend:
                 # allows them to be used like pointers, but with the side
                 # effect that they can't be assigned to
                 if by_ref:
-                    raise CompilerError(0, 0, 'Cannot use array in a ref context')
+                    raise CompilerError(*expr.loc, 'Cannot use array in a ref context')
 
                 self._write_comment('  Variable load: array {}', expr.name)
                 by_ref = True
@@ -793,7 +802,7 @@ class MarsBackend:
                 # Global variables are somewhere in .data land, labeled by their name
                 self._write_instr('    la $t0, {}', mangle_label(expr.name))
             elif owning_scope.is_builtin:
-                raise CompilerError(0, 0, 'Builtin values cannot be used, except to be called')
+                raise CompilerError(*expr.loc, 'Builtin values cannot be used, except to be called')
             else:
                 # Local variables are on the stack
                 stack_offset = self.current_context.func_stack[expr.name]
@@ -810,7 +819,7 @@ class MarsBackend:
         elif isinstance(expr, expressions.Integer):
             if by_ref:
                 # by_ref is invalid, clearly, since you can't assign to an integer
-                raise CompilerError(0, 0, 'Cannot use an integer literal in a ref context')
+                raise CompilerError(*expr.loc, 'Cannot use an integer literal in a ref context')
 
             dest_offset = temp_context.add_temp(self._type_size(types.Integer),
                                                 self._type_alignment(types.Integer))
@@ -821,7 +830,7 @@ class MarsBackend:
         elif isinstance(expr, expressions.Reference):
             # by_ref doesn't make sense, since this can't be assigned directly
             if by_ref:
-                raise CompilerError(0, 0, '(ref x) cannot be used in a ref context')
+                raise CompilerError(*expr.loc, '(ref x) cannot be used in a ref context')
 
             expr_dest, expr_type = self._compile_expression(expr.expr, temp_context, by_ref=True)
             return expr_dest, types.PointerTo(expr_type)
@@ -834,7 +843,7 @@ class MarsBackend:
             expr_dest, expr_type = self._compile_expression(expr.expr, temp_context)
 
             if not isinstance(expr_type, types.PointerTo):
-                raise CompilerError(0, 0, '(deref x) requires x to be a non-function pointer')
+                raise CompilerError(*expr.loc, '(deref x) requires x to be a non-function pointer')
 
             if by_ref:
                 return expr_dest, self._resolve_if_type_name(expr_type.type)
@@ -852,38 +861,38 @@ class MarsBackend:
         elif isinstance(expr, expressions.PointerToInt):
             # by_ref doesn't make sense - an integer can't be assigned to
             if by_ref:
-                raise CompilerError(0, 0, '(ptr-to-int x) is not valid in a ref context')
+                raise CompilerError(*expr.loc, '(ptr-to-int x) is not valid in a ref context')
 
             expr_dest, expr_type = self._compile_expression(expr.expr, temp_context)
 
             if not isinstance(expr_type, types.PointerTo):
-                raise CompilerError(0, 0, '(ptr-to-int x) requires x to be a non-function pointer')
+                raise CompilerError(*expr.loc, '(ptr-to-int x) requires x to be a non-function pointer')
 
             return expr_dest, types.Integer
         elif isinstance(expr, expressions.IntToPointer):
             # by_ref doesn't make sense - can't assign to the result of an expression
             if by_ref:
-                raise CompilerError(0, 0, '(int-to-ptr x) is not valid in a ref context')
+                raise CompilerError(*expr.loc, '(int-to-ptr x) is not valid in a ref context')
 
             expr_dest, expr_type = self._compile_expression(expr.expr, temp_context)
 
             if expr_type is not types.Integer:
-                raise CompilerError(0, 0, '(int-to-ptr x t) requires x to be an integer')
+                raise CompilerError(*expr.loc, '(int-to-ptr x t) requires x to be an integer')
 
             ret_type = self._resolve_if_type_name(expr.type)
             if not isinstance(ret_type, types.PointerTo):
-                raise CompilerError(0, 0, '(int-to-ptr x t) requires t to be pointer type')
+                raise CompilerError(*expr.loc, '(int-to-ptr x t) requires t to be pointer type')
 
             return expr_dest, ret_type
         elif isinstance(expr, expressions.IntToByte):
             # by_ref doesn't work, again because this can't be assigned to directly
             if by_ref:
-                raise CompilerError(0, 0, '(int-to-byte x) is not valid in a ref context')
+                raise CompilerError(*expr.loc, '(int-to-byte x) is not valid in a ref context')
 
             expr_dest, expr_type = self._compile_expression(expr.expr, temp_context)
             
             if expr_type is not types.Integer:
-                raise CompilerError(0, 0, '(int-to-byte x) requires x to be an integer')
+                raise CompilerError(*expr.loc, '(int-to-byte x) requires x to be an integer')
 
             byte_size = self._type_size(types.Byte)
             byte_align = self._type_alignment(types.Byte)
@@ -898,12 +907,12 @@ class MarsBackend:
         elif isinstance(expr, expressions.ByteToInt):
             # by_ref doesn't work, again because this can't be assigned to directly
             if by_ref:
-                raise CompilerError(0, 0, '(byte-to-int x) is not valid in a ref context')
+                raise CompilerError(*expr.loc, '(byte-to-int x) is not valid in a ref context')
 
             expr_dest, expr_type = self._compile_expression(expr.expr, temp_context)
             
             if expr_type is not types.Byte:
-                raise CompilerError(0, 0, '(byte-to-int x) requires x to be an byte')
+                raise CompilerError(*expr.loc, '(byte-to-int x) requires x to be an byte')
 
             int_size = self._type_size(types.Integer)
             int_align = self._type_alignment(types.Integer)
@@ -916,16 +925,16 @@ class MarsBackend:
         elif isinstance(expr, expressions.Cast):
             # by_ref doesn't work, again because this can't be assigned to directly
             if by_ref:
-                raise CompilerError(0, 0, '(cast t x) cannot be used in a ref context')
+                raise CompilerError(*expr.loc, '(cast t x) cannot be used in a ref context')
 
             expr_dest, expr_type = self._compile_expression(expr.expr, temp_context)
 
             if not isinstance(expr_type, types.PointerTo):
-                raise CompilerError(0, 0, '(cast t x) requires x to be a pointer type')
+                raise CompilerError(*expr.loc, '(cast t x) requires x to be a pointer type')
 
             ret_type = self._resolve_if_type_name(expr.type)
             if not isinstance(ret_type, types.PointerTo):
-                raise CompilerError(0, 0, '(cast t x) requires t to be pointer type')
+                raise CompilerError(*expr.loc, '(cast t x) requires t to be pointer type')
 
             return expr_dest, ret_type
         elif isinstance(expr, expressions.Array):
@@ -933,12 +942,12 @@ class MarsBackend:
             array_dest, array_type = self._compile_expression(expr.array, temp_context)
 
             if not isinstance(array_type, types.PointerTo):
-                raise CompilerError(0, 0, '(array x i) requires x to be a pointer type')
+                raise CompilerError(*expr.loc, '(array x i) requires x to be a pointer type')
 
             index_dest, index_type = self._compile_expression(expr.index, temp_context)
     
             if index_type is not types.Integer: 
-                raise CompilerError(0, 0, '(array x i) requires i to be an integer')
+                raise CompilerError(*expr.loc, '(array x i) requires i to be an integer')
 
             # We have to account for the fact that the memory used by an element
             # also includes the alignment padding added
@@ -987,7 +996,7 @@ class MarsBackend:
                 self._compile_expression(expr.struct, temp_context, by_ref=True))
 
             if not isinstance(struct_type, types.Struct):
-                raise CompilerError(0, 0, '(field s f...) requires that s be a structure')
+                raise CompilerError(*expr.loc, '(field s f...) requires that s be a structure')
 
             self._write_instr('    lw $t0, {}($fp)', struct_dest)
             total_offset = 0
@@ -996,7 +1005,7 @@ class MarsBackend:
                 try:
                     total_offset += self._field_offset(struct_type, field_name)
                 except KeyError:
-                    raise CompilerError(0, 0, 
+                    raise CompilerError(*expr.loc, 
                         "No field '{}' in structure {}", field_name, struct_type)
 
                 struct_type = self._resolve_if_type_name(struct_type.fields[field_name])
@@ -1021,17 +1030,17 @@ class MarsBackend:
                 return dest_offset, struct_type
         elif isinstance(expr, expressions.Arithmetic):
             if by_ref:
-                raise CompilerError(0, 0, 'Cannot use arithmetic result in a ref context')
+                raise CompilerError(*expr.loc, 'Cannot use arithmetic result in a ref context')
 
             lhs_dest, lhs_type = self._compile_expression(expr.lhs, temp_context)
             rhs_dest, rhs_type = self._compile_expression(expr.rhs, temp_context)
             
             if lhs_type is not types.Integer:
-                raise CompilerError(0, 0, 
+                raise CompilerError(*expr.loc, 
                     'Arithmetic expression requires integer on LHS')
 
             if rhs_type is not types.Integer:
-                raise CompilerError(0, 0, 
+                raise CompilerError(*expr.loc, 
                     'Arithmetic expression requires integer on RHS')
     
             int_size = self._type_size(types.Integer)
@@ -1059,17 +1068,17 @@ class MarsBackend:
             return dest_offset, types.Integer
         elif isinstance(expr, expressions.Compare):
             if by_ref:
-                raise CompilerError(0, 0, 'Cannot use & result in a ref context')
+                raise CompilerError(*expr.loc, 'Cannot use & result in a ref context')
 
             lhs_dest, lhs_type = self._compile_expression(expr.lhs, temp_context)
             rhs_dest, rhs_type = self._compile_expression(expr.rhs, temp_context)
             
             if not isinstance(lhs_type, (types.IntegerType, types.PointerTo)):
-                raise CompilerError(0, 0, 
+                raise CompilerError(*expr.loc, 
                     'Comparison expression requires integer or pointer on LHS')
 
             if not isinstance(rhs_type, (types.IntegerType, types.PointerTo)):
-                raise CompilerError(0, 0, 
+                raise CompilerError(*expr.loc, 
                     'Comparison expression requires integer or pointer on RHS')
     
             int_size = self._type_size(types.Integer)
@@ -1097,17 +1106,17 @@ class MarsBackend:
         elif isinstance(expr, (expressions.BitAnd, expressions.BitOr, expressions.BitXor,
                                 expressions.BitShiftLeft, expressions.BitShiftRight)):
             if by_ref:
-                raise CompilerError(0, 0, 'Cannot use bitwise result in a ref context')
+                raise CompilerError(*expr.loc, 'Cannot use bitwise result in a ref context')
 
             lhs_dest, lhs_type = self._compile_expression(expr.lhs, temp_context)
             rhs_dest, rhs_type = self._compile_expression(expr.rhs, temp_context)
             
             if lhs_type is not types.Integer:
-                raise CompilerError(0, 0, 
+                raise CompilerError(*expr.loc, 
                     'Bitwise expression requires integer on LHS')
 
             if rhs_type is not types.Integer:
-                raise CompilerError(0, 0, 
+                raise CompilerError(*expr.loc, 
                     'Bitwise expression requires integer on RHS')
     
             int_size = self._type_size(types.Integer)
@@ -1135,7 +1144,7 @@ class MarsBackend:
             return dest_offset, types.Integer
         elif isinstance(expr, expressions.And):
             if by_ref:
-                raise CompilerError(0, 0, 'Cannot use logical result in a ref context')
+                raise CompilerError(*expr.loc, 'Cannot use logical result in a ref context')
 
             int_size = self._type_size(types.Integer)
             int_align = self._type_alignment(types.Integer)
@@ -1155,7 +1164,7 @@ class MarsBackend:
             lhs_dest, lhs_type = self._compile_expression(expr.lhs, temp_context)
             
             if lhs_type is not types.Integer:
-                raise CompilerError(0, 0, 
+                raise CompilerError(*expr.loc, 
                     'Logical expression requires integer on LHS')
 
             self._write_instr('    lw $t0, {}($fp)', lhs_dest)
@@ -1165,7 +1174,7 @@ class MarsBackend:
             rhs_dest, rhs_type = self._compile_expression(expr.rhs, temp_context)
 
             if rhs_type is not types.Integer:
-                raise CompilerError(0, 0, 
+                raise CompilerError(*expr.loc, 
                     'Logical expression requires integer on RHS')
 
             self._write_instr('    lw $t0, {}($fp)', rhs_dest)
@@ -1175,7 +1184,7 @@ class MarsBackend:
             return dest_offset, types.Integer
         elif isinstance(expr, expressions.Or):
             if by_ref:
-                raise CompilerError(0, 0, 'Cannot use logical result in a ref context')
+                raise CompilerError(*expr.loc, 'Cannot use logical result in a ref context')
 
             int_size = self._type_size(types.Integer)
             int_align = self._type_alignment(types.Integer)
@@ -1195,7 +1204,7 @@ class MarsBackend:
             lhs_dest, lhs_type = self._compile_expression(expr.lhs, temp_context)
             
             if lhs_type is not types.Integer:
-                raise CompilerError(0, 0, 
+                raise CompilerError(*expr.loc, 
                     'Logical expression requires integer on LHS')
 
             self._write_instr('    lw $t0, {}($fp)', lhs_dest)
@@ -1204,7 +1213,7 @@ class MarsBackend:
             rhs_dest, rhs_type = self._compile_expression(expr.rhs, temp_context)
 
             if rhs_type is not types.Integer:
-                raise CompilerError(0, 0, 
+                raise CompilerError(*expr.loc, 
                     'Logical expression requires integer on RHS')
 
             self._write_instr('    lw $t0, {}($fp)', rhs_dest)
@@ -1214,7 +1223,7 @@ class MarsBackend:
             return dest_offset, types.Integer
         elif isinstance(expr, expressions.SizeOf):
             if by_ref:
-                raise CompilerError(0, 0, 'Cannot use size-of result in a ref context')
+                raise CompilerError(*expr.loc, 'Cannot use size-of result in a ref context')
 
             int_size = self._type_size(types.Integer)
             int_align = self._type_alignment(types.Integer)
@@ -1226,7 +1235,7 @@ class MarsBackend:
             return dest_offset, types.Integer
         elif isinstance(expr, expressions.Call):
             if by_ref:
-                raise CompilerError(0, 0, 'Cannot use function result in a ref context')
+                raise CompilerError(*expr.loc, 'Cannot use function result in a ref context')
 
             is_builtin = (isinstance(expr.func, expressions.Variable) and
                             expr.func.name in BUILTIN_FUNC_NAMES)
@@ -1238,10 +1247,10 @@ class MarsBackend:
                 func_dest, func_type = self._compile_expression(expr.func, temp_context)
 
             if not isinstance(func_type, types.FunctionPointer):
-                raise CompilerError(0, 0, 'Calls must be either to functions or function pointers')
+                raise CompilerError(*expr.loc, 'Calls must be either to functions or function pointers')
 
             if len(expr.params) != len(func_type.params):
-                raise CompilerError(0, 0, '{} expected {} params, got {}', 
+                raise CompilerError(*expr.loc, '{} expected {} params, got {}', 
                         func_type, len(func_type.params), len(expr.params))
 
             rev_param_dests = []
@@ -1252,7 +1261,7 @@ class MarsBackend:
                 param_dest, param_real_type = self._compile_expression(param, temp_context)
 
                 if param_real_type != param_expected_type:
-                    raise CompilerError(0, 0, '{} expected in call, got {}', 
+                    raise CompilerError(*expr.loc, '{} expected in call, got {}', 
                         param_expected_type, param_real_type)
 
                 rev_param_dests.append(param_dest)
@@ -1334,7 +1343,7 @@ class MarsBackend:
                 self._compile_expression(expression, temp_context))
 
             if value_type != assign_type:
-                raise CompilerError(0, 0, 
+                raise CompilerError(self.line, self.col,
                     'Cannot assign {} to {}', value_type, assign_type)
 
             # We have to do a dereference here, since the effect of loading
@@ -1362,7 +1371,7 @@ class MarsBackend:
                 self._compile_expression(cond, temp_context))
 
             if cond_type is not types.Integer:
-                raise CompilerError(0, 0, 'Conditional must be an integer')
+                raise CompilerError(*cond.loc, 'Conditional must be an integer')
 
             self._write_instr('    lw $t0, {}($fp)', cond_dest)
 
@@ -1410,7 +1419,7 @@ class MarsBackend:
                 self._compile_expression(cond, temp_context))
 
             if cond_type is not types.Integer:
-                raise CompilerError(0, 0, 'Conditional must be an integer')
+                raise CompilerError(*cond.loc, 'Conditional must be an integer')
 
             self._write_instr('    lw $t0, {}($fp)', cond_dest)
 
@@ -1438,7 +1447,7 @@ class MarsBackend:
         try:
             while_context = self.while_labels[-1]
         except IndexError:
-            raise CompilerError(0, 0, 'Cannot have break outside of while loop')
+            raise CompilerError(self.line, self.col, 'Cannot have break outside of while loop')
 
         self._write_instr('    j {}', while_context.exit)
 
@@ -1450,7 +1459,7 @@ class MarsBackend:
         try:
             while_context = self.while_labels[-1]
         except IndexError:
-            raise CompilerError(0, 0, 'Cannot have break outside of while loop')
+            raise CompilerError(self.line, self.col, 'Cannot have break outside of while loop')
 
         self._write_instr('    j {}', while_context.cond)
 
@@ -1467,7 +1476,7 @@ class MarsBackend:
                 self._compile_expression(expr, temp_context))
 
             if ret_type != self.func_ret_type:
-                raise CompilerError(0, 0, 'Returned expression must be the same as the function return type')
+                raise CompilerError(*expr.loc, 'Returned expression must be the same as the function return type')
 
             # Since we're barred from returning structures, the most we'll
             # have to deal with is words
@@ -1488,6 +1497,8 @@ class MarsBackend:
         """
         self._write_comment('==== Raw Expression ====')
         self._write_comment('  Expression: {}', expr)
+
+        self.line, self.col = expr.loc
 
         temp_context = self.current_context.func_stack.get_temp_context(self)
         with temp_context:

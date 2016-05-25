@@ -25,36 +25,36 @@ With the serial form:
 """
 from collections import namedtuple
 
-Call = namedtuple('Call', ['func', 'params'])
-Variable = namedtuple('Variable', ['name'])
-Integer = namedtuple('Integer', ['integer'])
+Call = namedtuple('Call', ['loc', 'func', 'params'])
+Variable = namedtuple('Variable', ['loc', 'name'])
+Integer = namedtuple('Integer', ['loc', 'integer'])
 
-Reference = namedtuple('Reference', ['expr'])
-Dereference = namedtuple('Dereference', ['expr'])
-PointerToInt = namedtuple('PointerToInt', ['expr'])
-IntToPointer = namedtuple('IntToPointer', ['type', 'expr'])
-Cast = namedtuple('Cast', ['type', 'expr'])
+Reference = namedtuple('Reference', ['loc', 'expr'])
+Dereference = namedtuple('Dereference', ['loc', 'expr'])
+PointerToInt = namedtuple('PointerToInt', ['loc', 'expr'])
+IntToPointer = namedtuple('IntToPointer', ['loc', 'type', 'expr'])
+Cast = namedtuple('Cast', ['loc', 'type', 'expr'])
 
-ByteToInt = namedtuple('ByteToInt', ['expr'])
-IntToByte = namedtuple('IntToByte', ['expr'])
+ByteToInt = namedtuple('ByteToInt', ['loc', 'expr'])
+IntToByte = namedtuple('IntToByte', ['loc', 'expr'])
 
-Array = namedtuple('Array', ['array', 'index'])
-Field = namedtuple('Field', ['struct', 'fields'])
+Array = namedtuple('Array', ['loc', 'array', 'index'])
+Field = namedtuple('Field', ['loc', 'struct', 'fields'])
 
 ARITH_PLUS, ARITH_MINUS, ARITH_TIMES, ARITH_DIVIDE, ARITH_MOD = range(5)
-Arithmetic = namedtuple('Artithmetic', ['kind', 'lhs', 'rhs'])
+Arithmetic = namedtuple('Artithmetic', ['loc', 'kind', 'lhs', 'rhs'])
 
 CMP_LESS, CMP_GREATER, CMP_LESSEQ, CMP_GREATEQ, CMP_EQ, CMP_NOTEQ = range(6)
-Compare = namedtuple('Compare', ['kind', 'lhs', 'rhs'])
+Compare = namedtuple('Compare', ['loc', 'kind', 'lhs', 'rhs'])
 
-BitAnd = namedtuple('BitAnd', ['lhs', 'rhs'])
-BitOr = namedtuple('BitOr', ['lhs', 'rhs'])
-BitXor = namedtuple('BitXor', ['lhs', 'rhs'])
-BitNot = namedtuple('BitNot', ['expr'])
-BitShiftLeft = namedtuple('BitShiftLeft', ['lhs', 'rhs'])
-BitShiftRight = namedtuple('BitShiftRight', ['lhs', 'rhs', 'sign_extend'])
+BitAnd = namedtuple('BitAnd', ['loc', 'lhs', 'rhs'])
+BitOr = namedtuple('BitOr', ['loc', 'lhs', 'rhs'])
+BitXor = namedtuple('BitXor', ['loc', 'lhs', 'rhs'])
+BitNot = namedtuple('BitNot', ['loc', 'expr'])
+BitShiftLeft = namedtuple('BitShiftLeft', ['loc', 'lhs', 'rhs'])
+BitShiftRight = namedtuple('BitShiftRight', ['loc', 'lhs', 'rhs', 'sign_extend'])
 
-And = namedtuple('And', ['lhs', 'rhs'])
-Or = namedtuple('Or', ['lhs', 'rhs'])
+And = namedtuple('And', ['loc', 'lhs', 'rhs'])
+Or = namedtuple('Or', ['loc', 'lhs', 'rhs'])
 
-SizeOf = namedtuple('SizeOf', ['type'])
+SizeOf = namedtuple('SizeOf', ['loc', 'type'])

@@ -37,6 +37,19 @@ class Backend:
     Note that all identifiers (var. names, field names, etc.) are given as
     strings, not full tokens.
     """
+    def update_position(self, line, col):
+        """
+        Gives the position of the driver, before any method is called.
+
+        Note that this is *not* called before:
+
+        - handle_decl_block_end
+        - handle_block_end
+        - handle_else
+        - handle_if_end
+        - handle_while_end
+        - handle_raw_expression
+        """
 
     def handle_begin_program(self):
         """
@@ -308,6 +321,7 @@ class Driver:
             (function RETURN IDENT*): Which indicates a function declaration.
             (alias TYPE): Which indicates an alias to an existing type.
         """
+        self.backend.update_position(declaration[0].line, declaration[0].column)
         self.backend.handle_decl_block_start()
 
         for element in declaration[1:]:
@@ -326,6 +340,10 @@ class Driver:
 
             identifier = element[0].content
             declaration = self.parse_decl_type(element[1])
+
+            decl_line = element[0].line
+            decl_col = element[0].column
+            self.backend.update_position(decl_line, decl_col)
 
             self.backend.handle_decl(identifier, declaration)
 
@@ -390,66 +408,74 @@ class Driver:
                 args = tuple(self.parse_expression(arg)
                         for arg in expr[1:])
 
-                return expressions.Call(func, args)
+                return expressions.Call(func.loc, func, args)
             elif expr[0].content == 'ref':
                 if len(expr) != 2:
                     raise CompilerError.from_token(expr[0],
                         'ref must be of the form (ref EXPR)')
 
+                loc = expr[0].line, expr[0].column
                 expr = self.parse_expression(expr[1])
-                return expressions.Reference(expr)
+                return expressions.Reference(loc, expr)
             elif expr[0].content == 'deref':
                 if len(expr) != 2:
                     raise CompilerError.from_token(expr[0],
                         'deref must be of the form (deref EXPR)')
 
+                loc = expr[0].line, expr[0].column
                 expr = self.parse_expression(expr[1])
-                return expressions.Dereference(expr)
+                return expressions.Dereference(loc, expr)
             elif expr[0].content == 'ptr-to-int':
                 if len(expr) != 2:
                     raise CompilerError.from_token(expr[0],
                         'ptr-to-int must be of the form (ptr-to-int EXPR)')
 
+                loc = expr[0].line, expr[0].column
                 expr = self.parse_expression(expr[1])
-                return expressions.PointerToInt(expr)
+                return expressions.PointerToInt(loc, expr)
             elif expr[0].content == 'int-to-ptr':
                 if len(expr) != 3:
                     raise CompilerError.from_token(expr[0],
                         'int-to-ptr must be of the form (int-to-ptr EXPR TYPE)')
 
+                loc = expr[0].line, expr[0].column
                 ret_type = self.parse_type(expr[1])
                 expr = self.parse_expression(expr[2])
-                return expressions.IntToPointer(ret_type, expr)
+                return expressions.IntToPointer(loc, ret_type, expr)
             elif expr[0].content == 'int-to-byte':
                 if len(expr) != 2:
                     raise CompilerError.from_token(expr[0],
                         'int-to-byte must be of the form (int-to-byte EXPR)')
 
+                loc = expr[0].line, expr[0].column
                 expr = self.parse_expression(expr[1])
-                return expressions.IntToByte(expr)
+                return expressions.IntToByte(loc, expr)
             elif expr[0].content == 'byte-to-int':
                 if len(expr) != 2:
                     raise CompilerError.from_token(expr[0],
                         'byte-to-int must be of the form (byte-to-int EXPR)')
 
+                loc = expr[0].line, expr[0].column
                 expr = self.parse_expression(expr[1])
-                return expressions.ByteToInt(expr)
+                return expressions.ByteToInt(loc, expr)
             elif expr[0].content == 'cast':
                 if len(expr) != 3:
                     raise CompilerError.from_token(expr[0],
                         'cast must be of the form (cast TYPE EXPR)')
 
+                loc = expr[0].line, expr[0].column
                 cast_type = self.parse_type(expr[1])
                 expression = self.parse_expression(expr[2])
-                return expressions.Cast(cast_type, expression)
+                return expressions.Cast(loc, cast_type, expression)
             elif expr[0].content == 'array':
                 if len(expr) != 3:
                     raise CompilerError.from_token(expr[0],
                         'array must be of the form (array EXPR EXPR)')
 
+                loc = expr[0].line, expr[0].column
                 array = self.parse_expression(expr[1])
                 index = self.parse_expression(expr[2])
-                return expressions.Array(array, index)
+                return expressions.Array(loc, array, index)
             elif expr[0].content == 'field':
                 if len(expr) < 3:
                     raise CompilerError.from_token(expr[0],
@@ -465,13 +491,15 @@ class Driver:
 
                     fields.append(field.content)
 
-                return expressions.Field(struct, tuple(fields))
+                loc = expr[0].line, expr[0].column
+                return expressions.Field(loc, struct, tuple(fields))
             elif expr[0].content in ('+', '-', '*', '/', '%'):
                 operator = expr[0].content
                 if len(expr) != 3:
                     raise CompilerError.from_token(expr[0],
                         '{op} must be of the form ({op} EXPR EXPR)'.format(op=operator))
 
+                loc = expr[0].line, expr[0].column
                 lhs = self.parse_expression(expr[1])
                 rhs = self.parse_expression(expr[2])
                 kind = {
@@ -481,13 +509,14 @@ class Driver:
                     '/': expressions.ARITH_DIVIDE,
                     '%': expressions.ARITH_MOD,
                 }[operator]
-                return expressions.Arithmetic(kind, lhs, rhs)
+                return expressions.Arithmetic(loc, kind, lhs, rhs)
             elif expr[0].content in ('&', '|', '^', '<<', '>>', '>>>'):
                 operator = expr[0].content
                 if len(expr) != 3:
                     raise CompilerError.from_token(expr[0],
                         '{op} must be of the form ({op} EXPR EXPR)'.format(op=operator))
 
+                loc = expr[0].line, expr[0].column
                 lhs = self.parse_expression(expr[1])
                 rhs = self.parse_expression(expr[2])
                 kind = {
@@ -498,20 +527,22 @@ class Driver:
                     '>>': lambda lhs, rhs: expressions.BitShiftRight(lhs, rhs, False),
                     '>>>': lambda lhs, rhs: expressions.BitShiftRight(lhs, rhs, True)
                 }[operator]
-                return kind(lhs, rhs)
+                return kind(loc, lhs, rhs)
             elif expr[0].content == '~':
                 if len(expr) != 2:
                     raise CompilerError.from_token(expr[0],
                         '~ must be of the form (~ EXPRESSION)')
 
+                loc = expr[0].line, expr[0].column
                 expr = self.parse_expression(expr[1])
-                return expressions.BitNot(expr)
+                return expressions.BitNot(loc, expr)
             elif expr[0].content in ('==', '!=', '<', '>', '<=', '>='):
                 operator = expr[0].content
                 if len(expr) != 3:
                     raise CompilerError.from_token(expr[0],
                         '{op} must be of the form ({op} EXPR EXPR)'.format(op=operator))
 
+                loc = expr[0].line, expr[0].column
                 lhs = self.parse_expression(expr[1])
                 rhs = self.parse_expression(expr[2])
                 kind = {
@@ -522,37 +553,42 @@ class Driver:
                     '<=': expressions.CMP_LESSEQ,
                     '>=': expressions.CMP_GREATEQ,
                 }[operator]
-                return expressions.Compare(kind, lhs, rhs)
+                return expressions.Compare(loc, kind, lhs, rhs)
             elif expr[0].content in ('&&', '||'):
                 operator = expr[0].content
                 if len(expr) != 3:
                     raise CompilerError.from_token(expr[0],
                         '{op} must be of the form ({op} EXPR EXPR)'.format(op=operator))
 
+                loc = expr[0].line, expr[0].column
                 lhs = self.parse_expression(expr[1])
                 rhs = self.parse_expression(expr[2])
                 kind = {
                     '&&': expressions.And,
                     '||': expressions.Or,
                 }[operator]
-                return kind(lhs, rhs)
+                return kind(loc, lhs, rhs)
             elif expr[0].content == 'size-of':
                 if len(expr) != 2:
                     raise CompilerError.from_token(expr[0],
                         'size-of must be of the form (size-of TYPE)')
 
+                loc = expr[0].line, expr[0].column
                 type_size = self.parse_type(expr[1])
-                return expressions.SizeOf(type_size)
+                return expressions.SizeOf(loc, type_size)
             else:
                 func = self.parse_expression(expr[0])
                 args = tuple(self.parse_expression(arg)
                         for arg in expr[1:])
 
-                return expressions.Call(func, args)
+                loc = func.loc
+                return expressions.Call(loc, func, args)
         elif is_integer(expr):
-            return expressions.Integer(expr.content)
+            loc = expr.line, expr.column
+            return expressions.Integer(loc, expr.content)
         elif is_identifier(expr):
-            return expressions.Variable(expr.content)
+            loc = expr.line, expr.column
+            return expressions.Variable(loc, expr.content)
 
     def process_statement(self, statement):
         """
@@ -576,6 +612,10 @@ class Driver:
             if isinstance(statement[0], list):
                 # No statement is of the form ((a b) c d)
                 expr = self.parse_expression(statement)
+
+                line = statement[0].line
+                column = statement[0].column
+                self.backend.update_position(line, column)
                 self.backend.handle_raw_expression(expr)
 
             elif not is_identifier(statement[0]):
@@ -584,7 +624,11 @@ class Driver:
                 return self.parse_expression(statement)
 
             elif statement[0].content == 'block':
+                line = statement[0].line
+                column = statement[0].column
+                self.backend.update_position(line, column)
                 self.backend.handle_block_start()
+
                 for sub_stmt in statement[1:]:
                     self.process_statement(sub_stmt)
 
@@ -597,6 +641,10 @@ class Driver:
 
                 assignable = self.parse_expression(statement[1])
                 expression = self.parse_expression(statement[2])
+
+                line = statement[0].line
+                column = statement[0].column
+                self.backend.update_position(line, column)
                 self.backend.handle_set(assignable, expression)
 
             elif statement[0].content == 'if':
@@ -605,6 +653,10 @@ class Driver:
                         'If must be of the form (if EXPRESSION STATEMENT STATEMENT?)')
 
                 condition = self.parse_expression(statement[1])
+
+                line = statement[0].line
+                column = statement[0].column
+                self.backend.update_position(line, column)
                 self.backend.handle_if(condition)
 
                 self.process_statement(statement[2])
@@ -621,6 +673,10 @@ class Driver:
                         'While must be of the form (while EXPRESSION STATEMENT)')
 
                 condition = self.parse_expression(statement[1])
+
+                line = statement[0].line
+                column = statement[0].column
+                self.backend.update_position(line, column)
                 self.backend.handle_while(condition)
 
                 self.process_statement(statement[2])
@@ -632,19 +688,29 @@ class Driver:
                     raise CompilerError.from_token(statement[0],
                         'Break must be of the form (break)')
 
-                self.backend.process_break()
+                line = statement[0].line
+                column = statement[0].column
+                self.backend.update_position(line, column)
+                self.backend.handle_break()
             elif statement[0].content == 'continue':
                 if len(statement) != 1:
                     raise CompilerError.from_token(statement[0],
                         'Continue must be of the form (continue)')
 
-                self.backend.process_continue()
+                line = statement[0].line
+                column = statement[0].column
+                self.backend.update_position(line, column)
+                self.backend.handle_continue()
             elif statement[0].content == 'return':
                 if len(statement) != 2:
                     raise CompilerError.from_token(statement[0],
                         'Return must be of the form (return EXPRESSION)')
 
                 expr = self.parse_expression(statement[1])
+
+                line = statement[0].line
+                column = statement[0].column
+                self.backend.update_position(line, column)
                 self.backend.handle_return(expr)
             else:
                 expr = self.parse_expression(statement)
