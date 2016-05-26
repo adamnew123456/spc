@@ -73,6 +73,16 @@ class Backend:
         declaration types.
         """
 
+    def handle_imports(self, names):
+        """
+        Called to process an import block.
+        """
+
+    def handle_exports(self, names):
+        """
+        Called after processing an import block.
+        """
+
     def handle_decl_block_end(self):
         """
         Called after processing the elements of a declaration block.
@@ -348,6 +358,38 @@ class Driver:
             self.backend.handle_decl(identifier, declaration)
 
         self.backend.handle_decl_block_end()
+
+    def process_import(self, imports):
+        """
+        Parses an import block.
+        """
+        self.backend.update_position(imports[0].line, imports[0].column)
+        names = []
+
+        for element in imports[1:]:
+            if not is_identifier(element):
+                raise CompilerError.from_token(element,
+                    'Each import must be an identifier')
+
+            names.append(element.content)
+
+        self.backend.handle_imports(names)
+
+    def process_export(self, exports):
+        """
+        Parses an export block.
+        """
+        self.backend.update_position(exports[0].line, exports[0].column)
+        names = []
+
+        for element in exports[1:]:
+            if not is_identifier(element):
+                raise CompilerError.from_token(element,
+                    'Each export must be an identifier')
+
+            names.append(element.content)
+
+        self.backend.handle_exports(names)
 
     def parse_expression(self, expr):
         """
@@ -779,6 +821,10 @@ class Driver:
                     self.process_declaration(chunk)
                 elif chunk[0].content == 'define':
                     self.process_function_definition(chunk)
+                elif chunk[0].content == 'import':
+                    self.process_import(chunk)
+                elif chunk[0].content == 'export':
+                    self.process_export(chunk)
                 else:
                     raise CompilerError.from_token(chunk[0],
                         "Expected 'declare' or 'define' at top level")

@@ -146,7 +146,8 @@ class MarsBackend(BaseBackend):
         self.undefined_funcs = set()
 
         self.parent_contexts = []
-        self.current_context = Context(self.def_vals, self.def_types, SymbolTable(), None)
+        self.current_context = Context(self.def_vals, self.def_types, 
+            SymbolTable(), None)
 
     def _push_context(self):
         """
@@ -323,7 +324,7 @@ class MarsBackend(BaseBackend):
 
             escaped = unescape_bytes(decl_type.bytes).encode('ascii')
             self.current_context.value_defns[name] = types.PointerTo(types.Byte)
-            self.current_context.array_bound[name] = True
+            self.current_context.array_bound[name] = len(escaped)
 
             if self.in_function:
                 # We can't really use .asciiz in a function, so we'll have to
@@ -346,9 +347,9 @@ class MarsBackend(BaseBackend):
 
             if self.in_function:
                 # Raw types have to be allocated stack space
-                type_size = self._type_size(decl_type)
+                size = self._type_size(decl_type)
                 alignment = self._type_alignment(decl_type)
-                self.current_context.func_stack.add_local(name, type_size, alignment)
+                self.current_context.func_stack.add_local(name, size, alignment)
 
                 self._write_comment('  At offset: {}($fp)', 
                     self.current_context.func_stack.local_offset)
@@ -364,7 +365,7 @@ class MarsBackend(BaseBackend):
                 self._write_instr('    .space {}', size)
 
             if was_array:
-                self.current_context.array_bound[name] = True
+                self.current_context.array_bound[name] = size
 
         elif isinstance(decl_type, types.Struct):
             # Structure types are treated as structure definitions, which 
@@ -408,6 +409,67 @@ class MarsBackend(BaseBackend):
             self._write_instr('    syscall')
         else:
             self._write_instr('    addi $sp, $sp, -{}', self.current_context.func_stack.locals_size())
+
+    def handle_imports(self, names):
+        """
+        Handles an import block.
+
+        MARS doesn't actually require anything to import symbols into the
+        current file, so this doesn't import anything. It doesn't work at
+        function level, because of the risk of polluting the global namespace
+        and creating clashes between 'local' imports and global imports.
+        """
+        if self.in_function:
+            raise CompilerError(self.line, self.col,
+                'Cannot import values inside of function')
+
+        for name in names:
+            try:
+                type_of = self.current_context.value_defns[name]
+            except KeyError:
+                raise CompilerError(self.line, self.col,
+                    'Undefined import "{}"', name)
+
+            if not types.can_be_global(type_of):
+                raise CompilerError(self.line, self.col,
+                    'Cannot import value of type "{}"', type_of)
+
+            self.undefined_funcs.remove(name)
+
+    def handle_exports(self, names):
+        """
+        Handles an export block.
+        
+        This will mark a value as either .extern (if it is a value) or as 
+        .globl (if it is a function).
+
+        This is invalid at the function level, because values inner to 
+        functions aren't available outside that function.
+        """
+        if self.in_function:
+            raise CompilerError(self.line, self.col,
+                'Cannot import values inside of function')
+
+        for name in names:
+            try:
+                type_of = self.current_context.value_defns[name]
+            except KeyError:
+                raise CompilerError(self.line, self.col,
+                    'Undefined export "{}"', name)
+
+            if not types.can_be_global(type_of):
+                raise CompilerError(self.line, self.col,
+                    'Cannot export value of type "{}"', type_of)
+
+            if isinstance(type_of, types.FunctionDecl):
+                self._write_instr('.globl {}', mangle_label(name))
+            else:
+                if name in self.current_context.array_bound:
+                    size = self.current_context.array_bound[name]
+                else:
+                    size = self._type_size(name)
+
+                self._write_instr('.extern {}, {}', mangle_label(name), size)
 
     def handle_func_def_start(self, name, params):
         """

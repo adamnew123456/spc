@@ -79,3 +79,12 @@ def align_address(addr, alignment, direction=Alignment.Up):
         return addr + alignment - (addr % alignment)
     else:
         return addr - (addr % alignment)
+
+def can_be_global(type_obj):
+    """
+    Returns True if the given type object represents a value that can be shared
+    across files, or False otherwise.
+    """
+    return isinstance(type_obj,
+        (IntegerType, ByteType, PointerTo, FunctionPointer, Struct,
+         FunctionDecl))
