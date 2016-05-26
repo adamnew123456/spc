@@ -143,6 +143,7 @@ class MarsBackend(BaseBackend):
     """
     def __init__(self, output):
         super().__init__(output, BUILTIN_FUNCTIONS, BUILTIN_TYPES)
+        self.undefined_funcs = set()
 
         self.parent_contexts = []
         self.current_context = Context(self.def_vals, self.def_types, SymbolTable(), None)
@@ -277,8 +278,11 @@ class MarsBackend(BaseBackend):
 
     def handle_end_program(self):
         """
-        Does nothing - nothing is required after writing the final function.
+        Handles the end of the program, after the last function is defined.
         """
+        if self.undefined_funcs:
+            raise CompilerError(0, 0,
+                'Functions not defined: {}', self.undefined_funcs)
 
     def handle_decl_block_start(self):
         """
@@ -373,6 +377,8 @@ class MarsBackend(BaseBackend):
             if self.in_function:
                 raise CompilerError(self.line, self.col, 'Cannot declare nested functions')
 
+            self.undefined_funcs.add(name)
+
             self._write_comment('  Declaring function {} :: {}', name, decl_type)
             self.current_context.value_defns[name] = decl_type
         elif isinstance(decl_type, types.AliasDef):
@@ -409,6 +415,8 @@ class MarsBackend(BaseBackend):
         """
         self.in_function = True
         self.func_exit_label = next(LABEL_MAKER)
+
+        self.undefined_funcs.remove(name)
 
         try:
             func_defn = self.current_context.value_defns[name]
