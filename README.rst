@@ -21,10 +21,6 @@ It is only of interest for educational purposes, since it is:
   goal. Right now, the only target is the MARS simulator, and even then, it's
   somewhat of a bad citizen (not following the calling conventions fully is
   the biggest problem, although there's a reason)
-- Single File: The language has no idea about linkage, so it's difficult to
-  share code across files without hacking in extern directives yourself. Whether
-  I fix this is a tossup - I want to add namespaces, and if I can find the time
-  to do them, I'll probably fix this issue then as well.
 
 Other than that, it produces code for a language which is pretty much on the
 same abstractive level as C - but, the language is organized explicitly to be
