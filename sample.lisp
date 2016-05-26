@@ -48,8 +48,29 @@
 ;;  - Declaring function signatures via function
 ;;  - Declaring string constants
 ;;  - Defining variables (via the other types)
-
+;;
+;; Import is like declare, but:
+;;
+;;  - It only works with functions and global values
+;;  - The values/functions cannot be implemented in the current file - they 
+;;    are marked as external
+;;
+;; Export is like import, but it allows other modules to use the functions
+;; and values that it exports. Note that export must be after the declare 
+;; block.
 (declare
+ (mars.sbrk
+  (function (pointer-to byte) integer))
+
+ (mars.read-int
+  (function integer))
+
+ (mars.print-int
+  (function byte integer))
+
+ (mars.print-string
+  (function byte (pointer-to byte)))
+
  (linked-ints
   (struct (value integer)
           (next (pointer-to linked-ints))))
@@ -66,9 +87,10 @@
    linked-ints-ptr))
 
  (main
-  (function integer))
+  (function integer)))
 
- (global-var integer))
+(import mars.sbrk mars.print-int mars.read-int mars.print-string)
+(export cons-linked-ints sum-linked-ints)
 
 ;; Function definitions are different from C in four ways:
 ;;
@@ -96,7 +118,7 @@
  ;; Truncate/expand bytes <-> integers:
  ;;  (byte-to-int E) and (int-to-byte E)
  (block
-  (set list (cast linked-ints-ptr (@sbrk (size-of linked-ints))))
+  (set list (cast linked-ints-ptr (mars.sbrk (size-of linked-ints))))
   (set (field (deref list) value) head)
   (set (field (deref list) next) tail)
   (return list)))
@@ -167,8 +189,8 @@
 
   (while (!= read-value 0)
    (block
-    (set read-value (@read-int))
+    (set read-value (mars.read-int))
     (set list (cons-linked-ints read-value list))))
 
-  (@print-int (sum-linked-ints list))
-  (@print-string newline)))
+  (mars.print-int (sum-linked-ints list))
+  (mars.print-string newline)))
