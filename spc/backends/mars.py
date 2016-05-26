@@ -3,98 +3,19 @@ MARS compiler backend - responsible for taking program events emitted by the
 driver and converting them into code.
 """
 from collections import namedtuple
-import itertools
 import logging
 import string
 
-from .errors import CompilerError
-from . import expressions
-from . import types
-
-def unescape_bytes(bytestr):
-    """
-    Returns a variant of the given bytestring that has C escapes replaced
-    with their ASCII values.
-
-    >>> unescape_bytes(b'\\0')
-    b'\x00'
-    """
-    return bytestr.decode('unicode_escape')
+from ..backend import BaseBackend
+from ..errors import CompilerError
+from .. import expressions
+from ..symbols import SymbolTable
+from .. import types
+from ..util import *
 
 LOGGER = logging.getLogger('spc.mars')
 
-# An infinite stream of fresh labels for the backend
-LABEL_MAKER = ('LM_{}'.format(value) for value in itertools.count(1))
-
-# Note that _ is not included, to avoid creating ambiguities - _ is always
-# encoded as '_95'
-LABEL_CHARS = string.ascii_letters + string.digits
-def mangle_label(label):
-    """
-    Converts a label into a form which MARS accepts.
-
-    This outputs labels which start with 'L_' and contain
-    only alphanumerics and underscores.
-    """
-    chunks = []
-    for char in label:
-        if char not in LABEL_CHARS:
-            char = '_' + str(ord(char)) + '_'
-        
-        chunks.append(char)
-
-    return 'L_' + ''.join(chunks)
-
-class SymbolTable:
-    """
-    A lookup table which binds variables in a nested way, where access goes
-    from the current symbol table up to the parent.
-    """
-    def __init__(self, parent=None, is_global=False, is_builtin=False):
-        self.parent = parent
-        self.is_builtin = is_builtin
-        self.is_global = is_global
-        self.bindings = {}
-
-    def find(self, key):
-        """
-        Finds the symbol table in which the given key is bound, or returns
-        None if the symbol is not bound.
-        """
-        table = self
-        while table is not None:
-            if key in table.bindings:
-                return table
-            else:
-                table = table.parent
-
-        return None
-
-    def __getitem__(self, key):
-        table = self
-        while table is not None:
-            if key in table.bindings:
-                return table.bindings[key]
-            else:
-                table = table.parent
-
-        raise KeyError('Could not resolve symbol "{}"'.format(key))
-
-    def __setitem__(self, key, value):
-        if key in self:
-            raise KeyError('Cannot overwrite existing definition of "{}"'.format(key))
-
-        self.bindings[key] = value
-
-    def __contains__(self, key):
-        table = self
-        while table is not None:
-            if key in table.bindings:
-                return True
-            else:
-                table = table.parent
-
-        return False
+LABEL_MAKER = make_label_maker()
 
 # A context is a bundle of symbol tables for values, functions, and types.
 #
@@ -223,23 +144,15 @@ class FunctionStack:
         """
         return self.vars[name]
 
-class MarsBackend:
+class MarsBackend(BaseBackend):
     """
     Emits MIPS assembly code compatible with the MARS simulator.
     """
     def __init__(self, output):
-        self.line = 0
-        self.col = 0
-        self.output_stream = output
-
-        program_vals = SymbolTable(BUILTIN_FUNCTIONS, is_global=True)
-        program_types = SymbolTable(BUILTIN_TYPES, is_global=True)
+        super().__init__(output, BUILTIN_FUNCTIONS, BUILTIN_TYPES)
 
         self.parent_contexts = []
-        self.current_context = Context(program_vals, program_types, SymbolTable(), None)
-
-        self.if_labels = []
-        self.while_labels = []
+        self.current_context = Context(self.def_vals, self.def_types, SymbolTable(), None)
 
     def _push_context(self):
         """
@@ -259,18 +172,6 @@ class MarsBackend:
         Loads the previous binding context.
         """
         self.current_context = self.parent_contexts.pop()
-
-    def _write_instr(self, fmt, *args, **kwargs):
-        """
-        Writes an instruction to the output stream.
-        """
-        print(fmt.format(*args, **kwargs), file=self.output_stream)
-
-    def _write_comment(self, fmt, *args, **kwargs):
-        """
-        Writes a code comment to the output stream.
-        """
-        print('#', fmt.format(*args, **kwargs), file=self.output_stream)
 
     class comment_after:
         def __init__(self, fmt, *args, **kwargs):
@@ -332,36 +233,6 @@ class MarsBackend:
         else:
             raise TypeError('Not a compiler type: {}'.format(type_obj))
 
-    def _field_offset(self, struct_type, field_name):
-        """
-        Computes the offset of a specific field in the given structure.
-        """
-        if field_name not in struct_type.fields:
-            raise KeyError('Structure {} does not have field "{}"'.format(struct_type, field_name))
-
-        offset = 0
-        for field in struct_type.fields:
-            if field_name == field:
-                break
-
-            field_type = self._resolve_if_type_name(struct_type.fields[field])
-            field_alignment = self._type_alignment(field_type)
-
-            offset = types.align_address(offset, field_alignment)
-            offset += self._type_size(field_type)
-
-        return offset
-
-    def _array_offset(self, array_type, index):
-        """
-        Computes the offset of the given index, from the first element, taking
-        into account the size and alignment of internal elements.
-        """
-        base_size = self._type_size(array_type.type)
-        alignment = self._type_alignment(array_type.type)
-        aligned_size = types.align_address(base_size, alignment)
-        return aligned_size * index
-
     def _type_size(self, type_obj, depth=0):
         """
         Returns the size of a type object in bytes.
@@ -393,73 +264,6 @@ class MarsBackend:
             return last_field_offset + self._type_size(last_field_type)
         else:
             raise TypeError('Not a compiler type: {}'.format(type_obj))
-
-    def _check_valid_types(self, type_objs):
-        """
-        Ensures that all the types given are well-defined - i.e. that all their
-        constituent parts reference other existing types.
-
-        Note that this does not uncover any other nastiness, like recursive
-        types.
-        """
-        # Recursive types are uncovered later, when actually computing the size
-        # of the types - obviously, computing the size of a type which includes
-        # itself as a member is going to fail
-        to_check = list(type_objs)
-        checked = list()
-
-        def check(type_obj):
-            "Schedules the type to be checked if it hasn't been yet"
-            if type_obj not in checked:
-                to_check.append(type_obj)
-
-        while to_check:
-            type_obj = to_check.pop()
-            checked.append(type_obj)
-
-            type_obj = self._resolve_if_type_name(type_obj)
-
-            if isinstance(type_obj, (types.PointerTo, types.ArrayOf)):
-                check(type_obj.type)
-            elif isinstance(type_obj, types.Struct):
-                self._write_comment('== Structure Layout ==')
-                self._write_comment('  Type: {}', type_obj)
-
-                for field_name, field_type in type_obj.fields.items():
-                    offset = self._field_offset(type_obj, field_name)
-                    self._write_comment('  Field "{}" Offset: {}', field_name, offset)
-
-                    check(field_type)
-            elif isinstance(type_obj, (types.FunctionDecl, types.FunctionPointer)):
-                check(type_obj.return_type)
-
-                return_type = self._resolve_if_type_name(type_obj.return_type)
-                if isinstance(return_type, types.Struct):
-                    # There's no situation where you couldn't rewrite:
-                    #
-                    #    (function structure-tupe ...)
-                    #
-                    # As:
-                    #
-                    #    (function byte (pointer-to structure-type) ...)
-                    #
-                    # And simply have the caller provide a structure to 
-                    # pre-populate. By doing this, we can avoid having to deal
-                    # with the obvious question "where do we put this thing?"
-                    raise CompilerError(self.line, self.col, 'Cannot return struct from function')
-
-                for param in type_obj.params:
-                    check(type_obj.params)
-
-            # Anything not in those categories is a value type, and is valid
-            # because it doesn't reference any other types
-
-    def update_position(self, line, col):
-        """
-        Called to update the current position in the program file.
-        """
-        self.line = line
-        self.col = col
 
     def handle_begin_program(self):
         """
@@ -1317,12 +1121,12 @@ class MarsBackend:
             
             # Since structure return types are not allowed, the most we'll be
             # copying is a full word
-            if return_type_size == 1:
-                self._write_instr('    sb $v0, {}($fp)', return_dest)
-            elif return_type_size == 2:
-                self._write_instr('    sh $v0, {}($fp)', return_dest)
-            elif return_type_size == 4:
-                self._write_instr('    sw $v0, {}($fp)', return_dest)
+            instr = {
+                1: 'sb',
+                2: 'sh',
+                4: 'sw',
+            }[return_type_size]
+            self._write_instr('    {} $v0, {}($fp)', instr, return_dest)
 
             return return_dest, return_type
 
@@ -1482,12 +1286,12 @@ class MarsBackend:
             # have to deal with is words
             ret_type_size = self._type_size(ret_type)
 
-            if ret_type_size == 1:
-                self._write_instr('    lb $v0, {}($fp)', ret_dest)
-            elif ret_type_size == 2:
-                self._write_instr('    lh $v0, {}($fp)', ret_dest)
-            elif ret_type_size == 4:
-                self._write_instr('    lw $v0, {}($fp)', ret_dest)
+            instr = {
+                1: 'lb',
+                2: 'lh',
+                4: 'lw',
+            }[ret_type_size]
+            self._write_instr('    {} $v0, {}($fp)', instr, ret_dest)
 
         self._write_instr('    j {}', self.func_exit_label)
 
@@ -1498,7 +1302,7 @@ class MarsBackend:
         self._write_comment('==== Raw Expression ====')
         self._write_comment('  Expression: {}', expr)
 
-        self.line, self.col = expr.loc
+        self.update_position(*expr.loc)
 
         temp_context = self.current_context.func_stack.get_temp_context(self)
         with temp_context:

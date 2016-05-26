@@ -17,7 +17,7 @@ for opt, arg in FLAGS:
         sys.exit(0)
     elif opt == '-b':
         try:
-            BACKEND = importlib.import_module('spc.' + arg)
+            BACKEND = importlib.import_module('spc.backends.' + arg)
         except ImportError as err:
             print('Invalid backend:', arg, file=sys.stderr)
             sys.exit(1)
