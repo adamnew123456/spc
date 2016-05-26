@@ -34,8 +34,11 @@ types and functions, notes about the restrictions which make the compiler somewh
 easier to implement. As a bonus, it actually serves as a runnable example which
 computes the sum of the numbers entered::
 
-    $ python3 compile.py -b mars -o sample.asm sample.lisp
-    $ java -jar Mars.jar sample.asm
+    $ mkdir build
+    $ cp arch/mars.asm build/mars.asm
+    $ python3 compile.py -b mars -o build/sample.asm sample.lisp
+    $ cd build
+    $ java -jar Mars.jar nc p sample.asm
     5
     10
     15
