@@ -9,14 +9,25 @@
   (function (pointer-to linked-ints)
    integer (pointer-to linked-ints)))
 
- (main (function byte)))
+ (main (function byte))
+
+ (mars.sbrk
+  (function (pointer-to byte) integer))
+
+ (mars.print-int
+  (function byte integer))
+
+ (mars.print-string
+  (function byte string)))
+
+(import mars.print-int mars.print-string mars.sbrk)
 
 (define cons (num rest)
  (declare
   (list (pointer-to linked-ints)))
 
  (block
-  (set list (cast (pointer-to linked-ints) (@sbrk (size-of linked-ints))))
+  (set list (cast (pointer-to linked-ints) (mars.sbrk (size-of linked-ints))))
   (set (field (deref list) value) num)
   (set (field (deref list) next) rest)
   (return list)))
@@ -33,12 +44,12 @@
   (set list (cons 1 list))
   (set list (cons 2 list))
 
-  (@print-int (field (deref list) value))
-  (@print-string newline)
+  (mars.print-int (field (deref list) value))
+  (mars.print-string newline)
 
   (set list (field (deref list) next))
-  (@print-int (field (deref list) value))
-  (@print-string newline)
+  (mars.print-int (field (deref list) value))
+  (mars.print-string newline)
 
-  (@print-int (ptr-to-int (field (deref list) next)))
-  (@print-string newline)))
+  (mars.print-int (ptr-to-int (field (deref list) next)))
+  (mars.print-string newline)))

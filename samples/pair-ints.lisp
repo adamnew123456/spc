@@ -5,7 +5,15 @@
           (b integer)))
  
  (main
-  (function byte)))
+  (function byte))
+
+ (mars.print-int
+  (function byte integer))
+
+ (mars.print-string
+  (function byte string)))
+
+(import mars.print-int mars.print-string)
 
 (define main ()
  (declare (pair int-pair))
@@ -16,7 +24,7 @@
   (set (field pair a) 1)
   (set (field pair b) 2)
 
-  (@print-int (field pair a))
-  (@print-string newline)
-  (@print-int (field pair b))
-  (@print-string newline)))
+  (mars.print-int (field pair a))
+  (mars.print-string newline)
+  (mars.print-int (field pair b))
+  (mars.print-string newline)))

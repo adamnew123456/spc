@@ -4,7 +4,15 @@
  (triple (function integer integer))
  (do-42 (function integer
          (func-pointer integer integer)))
- (main (function byte)))
+ (main (function byte))
+
+ (mars.print-int
+  (function byte integer))
+ 
+ (mars.print-string
+  (function byte string)))
+
+(import mars.print-int mars.print-string)
 
 (define double (x) 
  (declare)
@@ -21,7 +29,7 @@
 (define main ()
  (declare)
  (block
-  (@print-int (do-42 double))
-  (@print-string newline)
-  (@print-int (do-42 triple))
-  (@print-string newline)))
+  (mars.print-int (do-42 double))
+  (mars.print-string newline)
+  (mars.print-int (do-42 triple))
+  (mars.print-string newline)))

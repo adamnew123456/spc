@@ -1,8 +1,13 @@
 (declare
  (hello-world (ascii "Hello, World!\n"))
- (main (function byte)))
+ (main (function byte))
+
+ (mars.print-string
+  (function byte string)))
+
+(import mars.print-string)
 
 (define main ()
  (declare)
  (block
-  (@print-string hello-world)))
+  (mars.print-string hello-world)))
