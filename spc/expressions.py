@@ -56,5 +56,6 @@ BitShiftRight = namedtuple('BitShiftRight', ['loc', 'lhs', 'rhs', 'sign_extend']
 
 And = namedtuple('And', ['loc', 'lhs', 'rhs'])
 Or = namedtuple('Or', ['loc', 'lhs', 'rhs'])
+Not = namedtuple('Not', ['loc', 'expr'])
 
 SizeOf = namedtuple('SizeOf', ['loc', 'type'])

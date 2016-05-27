@@ -610,6 +610,14 @@ class Driver:
                     '||': expressions.Or,
                 }[operator]
                 return kind(loc, lhs, rhs)
+            elif expr[0].content == '!':
+                if len(expr) != 2:
+                    raise CompilerError.from_token(expr[0],
+                        '! must be of the form (! EXPRESSION)')
+
+                loc = expr[0].line, expr[0].column
+                expr = self.parse_expression(expr[1])
+                return expressions.Not(loc, expr)
             elif expr[0].content == 'size-of':
                 if len(expr) != 2:
                     raise CompilerError.from_token(expr[0],

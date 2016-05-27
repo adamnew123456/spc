@@ -165,6 +165,7 @@
     ;; Logical expressions:
     ;;   (&& E E) and (|| E E) are the short-circuiting versions of the
     ;;   bitwise operators & and |
+    ;;   (! E) takes the logical negation of E
     (set sum (+ sum (field (deref list) value)))
     (set list (field (deref list) next))))
 

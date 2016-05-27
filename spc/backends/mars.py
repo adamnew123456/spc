@@ -1121,6 +1121,25 @@ class MarsBackend(BaseBackend):
             self._write_instr('    sw $t0, {}($fp)', dest_offset)
 
             return dest_offset, types.Integer
+        elif isinstance(expr, expressions.Not):
+            if by_ref:
+                raise CompilerError(*expr.loc, 'Cannot use logical result in a ref context')
+
+            expr_dest, expr_type = (
+                self._compile_expression(expr.expr, temp_context))
+
+            if expr_type is not types.Integer:
+                raise CompilerError(*expr.loc, 'Logical expression requires integer')
+
+            int_size = self._type_size(types.Integer)
+            int_align = self._type_alignment(types.Integer)
+            dest_offset = temp_context.add_temp(int_size, int_align)
+
+            self._write_instr('    lw $t0, {}($fp)', expr_dest)
+            self._write_instr('    seq $t0, $t0, $0')
+            self._write_instr('    sw $t0, {}($fp)', dest_offset)
+
+            return dest_offset, types.Integer
         elif isinstance(expr, expressions.SizeOf):
             if by_ref:
                 raise CompilerError(*expr.loc, 'Cannot use size-of result in a ref context')
