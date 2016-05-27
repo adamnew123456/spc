@@ -45,6 +45,20 @@ computes the sum of the numbers entered::
     0
     30
 
+If you are running on a Unix-like system, you can also use the Makefile to build
+the various samples:
+
+    $ mkdir build
+    $ make build/fizzbuzz.asm
+    $ cd build
+    $ java -jar Mars.jar nc p fizzbuzz.asm
+    1
+    2
+    Fizz
+    4
+    Buzz
+    ...
+
 Compiling Things
 ================
 
