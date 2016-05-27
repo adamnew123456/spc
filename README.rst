@@ -46,7 +46,7 @@ computes the sum of the numbers entered::
     30
 
 If you are running on a Unix-like system, you can also use the Makefile to build
-the various samples:
+the various samples::
 
     $ mkdir build
     $ make build/fizzbuzz.asm
