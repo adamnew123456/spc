@@ -122,6 +122,12 @@ class FunctionStack:
 
                 return self.tmp_offset
 
+            def get_temp_context(self):
+                """
+                Creates a temporary context, which starts at this temporary context.
+                """
+                return TemporaryContext(self.tmp_offset)
+
         return TemporaryContext(self.local_offset)
 
     def locals_size(self):
@@ -1054,16 +1060,21 @@ class MarsBackend(BaseBackend):
                     'Logical expression requires integer on LHS')
 
             self._write_instr('    lw $t0, {}($fp)', lhs_dest)
-            self._write_instr('    xor $t0, $t0, $t0')
             self._write_instr('    beq $t0, $0, {}', end_label)
 
-            rhs_dest, rhs_type = self._compile_expression(expr.rhs, temp_context)
+            # The reason for the sub-context here is that there is an extra stack
+            # allocation in the case where the expression doesn't short circuit,
+            # and we don't want the stack to become inconsistent across the branch
+            sub_context = temp_context.get_temp_context()
+            with sub_context:
+                rhs_dest, rhs_type = self._compile_expression(expr.rhs, sub_context)
 
-            if rhs_type is not types.Integer:
-                raise CompilerError(*expr.loc, 
-                    'Logical expression requires integer on RHS')
+                if rhs_type is not types.Integer:
+                    raise CompilerError(*expr.loc, 
+                        'Logical expression requires integer on RHS')
 
-            self._write_instr('    lw $t0, {}($fp)', rhs_dest)
+                self._write_instr('    lw $t0, {}($fp)', rhs_dest)
+
             self._write_instr('{}:', end_label)
             self._write_instr('    sw $t0, {}($fp)', dest_offset)
 
@@ -1096,13 +1107,16 @@ class MarsBackend(BaseBackend):
             self._write_instr('    lw $t0, {}($fp)', lhs_dest)
             self._write_instr('    bne $t0, $0, {}', end_label)
 
-            rhs_dest, rhs_type = self._compile_expression(expr.rhs, temp_context)
+            sub_context = temp_context.get_temp_context()
+            with sub_context:
+                rhs_dest, rhs_type = self._compile_expression(expr.rhs, sub_context)
 
-            if rhs_type is not types.Integer:
-                raise CompilerError(*expr.loc, 
-                    'Logical expression requires integer on RHS')
+                if rhs_type is not types.Integer:
+                    raise CompilerError(*expr.loc, 
+                        'Logical expression requires integer on RHS')
 
-            self._write_instr('    lw $t0, {}($fp)', rhs_dest)
+                self._write_instr('    lw $t0, {}($fp)', rhs_dest)
+
             self._write_instr('{}:', end_label)
             self._write_instr('    sw $t0, {}($fp)', dest_offset)
 
