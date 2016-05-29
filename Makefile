@@ -1,5 +1,5 @@
 clean:
-	rm build/*.asm
+	rm -f build/*.asm
 
 build/mars.asm: arch/mars.lisp
 	python3 compile.py -l -b mars -o build/mars.asm arch/mars.lisp
