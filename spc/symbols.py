@@ -12,6 +12,13 @@ class SymbolTable:
         self.is_global = is_global
         self.bindings = {}
 
+    def __iter__(self):
+        for name, value in self.bindings.items():
+            yield name, value
+
+        if self.parent:
+            yield from self.parent
+            
     def find(self, key):
         """
         Finds the symbol table in which the given key is bound, or returns

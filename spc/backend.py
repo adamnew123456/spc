@@ -2,9 +2,150 @@
 This is the base backend, which contains parts which should be common to most
 backends.
 """
+from .driver import Driver
 from .errors import CompilerError
+from .lexer import Lexer
 from .symbols import SymbolTable
 from . import types
+
+class EmptyBackend:
+    """
+    A skeleton backend which has all the methods used by the driver.
+
+    Note that all identifiers (var. names, field names, etc.) are given as
+    strings, not full tokens.
+    """
+    def update_position(self, line, col):
+        """
+        Gives the position of the driver, before any method is called.
+
+        Note that this is *not* called before:
+
+        - handle_decl_block_end
+        - handle_block_end
+        - handle_else
+        - handle_if_end
+        - handle_while_end
+        - handle_raw_expression
+        """
+
+    def handle_begin_program(self):
+        """
+        Called before any other handler.
+        """
+
+    def handle_end_program(self):
+        """
+        Called after every other handler.
+        """
+
+    def handle_decl_block_start(self):
+        """
+        Called before processing the elements of a declaration block.
+        """
+
+    def handle_decl(self, name, decl_type):
+        """
+        Handles a declaration which binds the name and the given type. decl_type
+        can be anything from the spc.types module - either value types or special
+        declaration types.
+        """
+
+    def handle_require(self, filename):
+        """
+        Called to process a require statement.
+        """
+
+    def handle_exports(self, names):
+        """
+        Called after processing an import block.
+        """
+
+    def handle_decl_block_end(self):
+        """
+        Called after processing the elements of a declaration block.
+        """
+
+    def handle_func_def_start(self, name, params):
+        """
+        Called after reading the start of a function definition, but before the
+        declaration or the body.
+
+        Name contains the function's name, params contains the function's
+        parameters' names.
+        """
+
+    def handle_func_def_end(self):
+        """
+        Called after reading the function body.
+        """
+
+    def handle_assembly(self, name, code):
+        """
+        Called after reading an inline assembly definition.
+        """
+
+    def handle_block_start(self):
+        """
+        Called before handling any of the statements inside of a block.
+        """
+
+    def handle_block_end(self):
+        """
+        Called after handling all of the statements inside of a block.
+        """
+
+    def handle_set(self, assignable, expression):
+        """
+        Called after reading a (set ASSIGNABLE EXPRESSION) statement.
+        """
+
+    def handle_if(self, cond):
+        """
+        Called just after reading the condition for an if, but before the 'then'
+        portion.
+        """
+
+    def handle_else(self):
+        """
+        Called after handing the 'then' portion of an if, but before the else.
+        This is called whether or not there actually is an 'else' body.
+        """
+
+    def handle_if_end(self):
+        """
+        Called after reading an if.
+        """
+
+    def handle_while(self, cond):
+        """
+        Called after reading the condition of a while, but before the body.
+        """
+
+    def handle_while_end(self):
+        """
+        Called after reading the body of a while.
+        """
+
+    def handle_break(self):
+        """
+        Called after reading a break statement.
+        """
+
+    def handle_continue(self):
+        """
+        Called after reading a continue statement.
+        """
+
+    def handle_return(self, expr):
+        """
+        Called after reading a return statement.
+        """
+
+    def handle_raw_expression(self, expression):
+        """
+        Handles an expression that is directly under a block.
+        """
 
 class BaseBackend:
     """
@@ -60,7 +201,6 @@ class BaseBackend:
         names rather than their 'actual' types.
         """
         raise NotImplementedError
-
 
     def _field_offset(self, struct_type, field_name):
         """

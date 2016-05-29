@@ -30,145 +30,6 @@ def is_string(token):
     """
     return isinstance(token, lexer.Token) and token.type == lexer.STRING
 
-class Backend:
-    """
-    A skeleton backend which has all the methods used by the driver.
-
-    Note that all identifiers (var. names, field names, etc.) are given as
-    strings, not full tokens.
-    """
-    def update_position(self, line, col):
-        """
-        Gives the position of the driver, before any method is called.
-
-        Note that this is *not* called before:
-
-        - handle_decl_block_end
-        - handle_block_end
-        - handle_else
-        - handle_if_end
-        - handle_while_end
-        - handle_raw_expression
-        """
-
-    def handle_begin_program(self):
-        """
-        Called before any other handler.
-        """
-
-    def handle_end_program(self):
-        """
-        Called after every other handler.
-        """
-
-    def handle_decl_block_start(self):
-        """
-        Called before processing the elements of a declaration block.
-        """
-
-    def handle_decl(self, name, decl_type):
-        """
-        Handles a declaration which binds the name and the given type. decl_type
-        can be anything from the spc.types module - either value types or special
-        declaration types.
-        """
-
-    def handle_imports(self, names):
-        """
-        Called to process an import block.
-        """
-
-    def handle_exports(self, names):
-        """
-        Called after processing an import block.
-        """
-
-    def handle_decl_block_end(self):
-        """
-        Called after processing the elements of a declaration block.
-        """
-
-    def handle_func_def_start(self, name, params):
-        """
-        Called after reading the start of a function definition, but before the
-        declaration or the body.
-
-        Name contains the function's name, params contains the function's
-        parameters' names.
-        """
-
-    def handle_func_def_end(self):
-        """
-        Called after reading the function body.
-        """
-
-    def handle_assembly(self, name, code):
-        """
-        Called after reading an inline assembly definition.
-        """
-
-    def handle_block_start(self):
-        """
-        Called before handling any of the statements inside of a block.
-        """
-
-    def handle_block_end(self):
-        """
-        Called after handling all of the statements inside of a block.
-        """
-
-    def handle_set(self, assignable, expression):
-        """
-        Called after reading a (set ASSIGNABLE EXPRESSION) statement.
-        """
-
-    def handle_if(self, cond):
-        """
-        Called just after reading the condition for an if, but before the 'then'
-        portion.
-        """
-
-    def handle_else(self):
-        """
-        Called after handing the 'then' portion of an if, but before the else.
-        This is called whether or not there actually is an 'else' body.
-        """
-
-    def handle_if_end(self):
-        """
-        Called after reading an if.
-        """
-
-    def handle_while(self, cond):
-        """
-        Called after reading the condition of a while, but before the body.
-        """
-
-    def handle_while_end(self):
-        """
-        Called after reading the body of a while.
-        """
-
-    def handle_break(self):
-        """
-        Called after reading a break statement.
-        """
-
-    def handle_continue(self):
-        """
-        Called after reading a continue statement.
-        """
-
-    def handle_return(self, expr):
-        """
-        Called after reading a return statement.
-        """
-
-    def handle_raw_expression(self, expression):
-        """
-        Handles an expression that is directly under a block.
-        """
-
 class Driver:
     """
     Responsible for reading nested lists from the lexer and passing them off
@@ -365,21 +226,23 @@ class Driver:
 
         self.backend.handle_decl_block_end()
 
-    def process_import(self, imports):
+    def process_require(self, require):
         """
-        Parses an import block.
+        Parses a require statement.
         """
-        self.backend.update_position(imports[0].line, imports[0].column)
-        names = []
+        if len(require) != 2:
+            raise CompilerError.from_token(require[0],
+                'require must take the form (require STRING)')
 
-        for element in imports[1:]:
-            if not is_identifier(element):
-                raise CompilerError.from_token(element,
-                    'Each import must be an identifier')
+        self.backend.update_position(require[0].line, require[0].column)
 
-            names.append(element.content)
+        filename = require[1]
+        if not is_string(filename):
+            raise CompilerError.from_token(require[0],
+                'require must take the form (require STRING)')
 
-        self.backend.handle_imports(names)
+        filename_text = filename.content.decode('ascii')
+        self.backend.handle_require(filename_text)
 
     def process_export(self, exports):
         """
@@ -865,8 +728,8 @@ class Driver:
                     self.process_function_definition(chunk)
                 elif chunk[0].content == 'assemble':
                     self.process_assembly_definition(chunk)
-                elif chunk[0].content == 'import':
-                    self.process_import(chunk)
+                elif chunk[0].content == 'require':
+                    self.process_require(chunk)
                 elif chunk[0].content == 'export':
                     self.process_export(chunk)
                 else:

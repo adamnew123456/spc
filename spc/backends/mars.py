@@ -9,6 +9,7 @@ import string
 from ..backend import BaseBackend
 from ..errors import CompilerError
 from .. import expressions
+from ..require_processor import RequireProcessor
 from ..symbols import SymbolTable
 from .. import types
 from ..util import *
@@ -151,6 +152,7 @@ class MarsBackend(BaseBackend):
         super().__init__(output, filename, is_library,
                 BUILTIN_FUNCTIONS, BUILTIN_TYPES)
 
+        self.exported = set()
         self.undefined_funcs = set()
 
         self.parent_contexts = []
@@ -412,31 +414,33 @@ class MarsBackend(BaseBackend):
                 self._write_instr('    li $v0, 10')
                 self._write_instr('    syscall')
 
-    def handle_imports(self, names):
+    def handle_require(self, filename):
         """
-        Handles an import block.
-
-        MARS doesn't actually require anything to import symbols into the
-        current file, so this doesn't import anything. It doesn't work at
-        function level, because of the risk of polluting the global namespace
-        and creating clashes between 'local' imports and global imports.
+        Handles a require which loads the given filename.
         """
         if self.in_function:
-            raise CompilerError(self.line, self.col,
-                'Cannot import values inside of function')
+            self.error(self.line, self.col,
+                "Cannot load another file inside of a function")
 
-        for name in names:
-            try:
-                type_of = self.current_context.value_defns[name]
-            except KeyError:
-                raise CompilerError(self.line, self.col,
-                    'Undefined import "{}"', name)
+        try:
+            processor = RequireProcessor.require(filename)
+            if processor is None:
+                return
 
-            if not types.can_be_global(type_of):
-                raise CompilerError(self.line, self.col,
-                    'Cannot import value of type "{}"', type_of)
+            for type_name, type_obj in processor.exported_types:
+                self._write_comment('Importing definition: {} of type {}', type_name, type_obj)
+                self.current_context.type_defns[type_name] = type_obj
 
-            self.undefined_funcs.remove(name)
+            for val_name, val_obj in processor.exported_values:
+                self._write_comment('Importing value: {} of type {}', val_name, val_obj)
+                self.current_context.value_defns[val_name] = val_obj
+                self.exported.add(val_name)
+
+            for arr_name, arr_obj in processor.exported_arrays:
+                self.current_context.array_bound[arr_name] = True
+        except OSError:
+            self.error(self.line, self.col,
+                "Could not open file '{}' for reading", filename)
 
     def handle_exports(self, names):
         """
@@ -453,6 +457,10 @@ class MarsBackend(BaseBackend):
                 'Cannot import values inside of function')
 
         for name in names:
+            if name in self.exported:
+                self.error(self.line, self.col,
+                    'Cannot re-export foreign value "{}"', name)
+
             try:
                 type_of = self.current_context.value_defns[name]
             except KeyError:
