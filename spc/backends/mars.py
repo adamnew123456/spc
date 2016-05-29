@@ -194,23 +194,14 @@ class MarsBackend(BaseBackend):
         """
         Resolves a type name into a concrete type.
         """
-        # Avoid crashing due to deep type searches
-        MAX_DEPTH = 25
-        start_name = name
-
         try:
-            current_depth = 0
-            while isinstance(name, types.TypeName):
-                current_depth += 1
-                name = self.current_context.type_defns[name.name]
-
-                if current_depth > MAX_DEPTH:
-                    raise CompilerError(self.line, self.col,
-                        'Type aliases too deep, when resolving "{}"', start_name.name)
-
-            return name
-        except KeyError:
-            raise CompilerError(self.line, self.col, 'Invalid type "{}"', name)
+            return types.resolve_name(name, self.current_context.type_defns)
+        except RecursionError:
+            self.error(self.line, self.col,
+                'Type aliases too deep, when resolving "{}"', name)
+        except KeyError as exn:
+            self.error(self.line, self.col, 
+                'Invalid type "{}"', str(exn))
 
     def _type_alignment(self, type_obj):
         """

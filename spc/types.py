@@ -88,3 +88,20 @@ def can_be_global(type_obj):
     return isinstance(type_obj,
         (IntegerType, ByteType, PointerTo, FunctionPointer, Struct,
          FunctionDecl))
+
+def resolve_name(name, types, MAX_DEPTH=25):
+    """
+    Resolves a type name into a concrete type.
+    """
+    # Avoid crashing due to deep type searches
+    MAX_DEPTH = 25
+
+    current_depth = 0
+    while isinstance(name, TypeName):
+        current_depth += 1
+        name = types[name.name]
+
+        if current_depth > MAX_DEPTH:
+            raise RecursionError
+
+    return name
