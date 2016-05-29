@@ -549,6 +549,25 @@ class MarsBackend(BaseBackend):
         self.func_exit_label = None
         self.func_ret_type = None
 
+    def handle_assembly(self, name, code):
+        """
+        Handles the definition of a function with inline assembly.
+        """
+        self.undefined_funcs.remove(name)
+
+        try:
+            func_defn = self.current_context.value_defns[name]
+        except KeyError as exn:
+            raise CompilerError(self.line, self.col, 'Undefined function "{}"', name)
+
+        if not isinstance(func_defn, types.FunctionDecl):
+            raise CompilerError(self.line, self.col, 'Value {} is not a function', name)
+
+        func_label = mangle_label(name)
+        self._write_instr('{}:', func_label)
+        for instr in code.splitlines():
+            self._write_instr('{}', instr)
+
     def handle_block_start(self):
         """
         Handles the beginning of a begin block.

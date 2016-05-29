@@ -2,4 +2,3 @@
 __pycache__
 *.asm
 build
-!/arch/mars.asm

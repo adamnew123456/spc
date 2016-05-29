@@ -102,6 +102,11 @@ class Backend:
         Called after reading the function body.
         """
 
+    def handle_assembly(self, name, code):
+        """
+        Called after reading an inline assembly definition.
+        """
+
     def handle_block_start(self):
         """
         Called before handling any of the statements inside of a block.
@@ -782,7 +787,7 @@ class Driver:
                 'Function definition must be of the form (define NAME (PARAMS) DECLARE BODY)')
 
         name = definition[1]
-        if isinstance(name, list) or name.type != lexer.IDENTIFIER:
+        if not is_identifier(name):
             raise CompilerError.from_token(definition[0],
                 'Function definition does not have a valid name')
 
@@ -812,6 +817,34 @@ class Driver:
 
         self.backend.handle_func_def_end()
 
+    def process_assembly_definition(self, definition):
+        """
+        Processes a definition using inline assembly.
+
+            (assemble IDENTIFIER
+             STRING)
+        """
+        if len(definition) != 3:
+            raise CompilerError.from_token(definition[0],
+                'Inline assembly must be of the form (assemble NAME STR)')
+
+        name = definition[1]
+        if not is_identifier(name):
+            raise CompilerError.from_token(definition[0],
+                'Inline assembly does not have a valid name')
+
+        assembly = definition[2]
+        if not is_string(assembly):
+            raise CompilerError.from_token(definition[0],
+                'Inline assembly does not have valid code')
+
+        asm_line = definition[0].line
+        asm_col = definition[0].column
+        self.backend.update_position(asm_line, asm_col)
+
+        asm_text = assembly.content.decode('ascii')
+        self.backend.handle_assembly(name.content, asm_text)
+
     def compile(self):
         """
         This process the source file, handing off syntax elements off to the
@@ -829,13 +862,15 @@ class Driver:
                     self.process_declaration(chunk)
                 elif chunk[0].content == 'define':
                     self.process_function_definition(chunk)
+                elif chunk[0].content == 'assemble':
+                    self.process_assembly_definition(chunk)
                 elif chunk[0].content == 'import':
                     self.process_import(chunk)
                 elif chunk[0].content == 'export':
                     self.process_export(chunk)
                 else:
                     raise CompilerError.from_token(chunk[0],
-                        "Expected 'declare' or 'define' at top level")
+                        "Unexpected '{}' at top level", chunk[0].content)
 
             elif chunk.type == lexer.INTEGER:
                 raise CompilerError.from_token(chunk,

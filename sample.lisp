@@ -101,6 +101,10 @@
 ;;   in the function call / return handling code)
 ;; - They can't take arrays as parameters, or return them, since there isn't a
 ;;   way to get a value of an array type, because they decay immediately
+;;
+;; Functions can also be defined with assembly code:
+;;
+;; (assemble NAME CODE-STRING)
 (define cons-linked-ints (head tail)
  (declare
   (list linked-ints-ptr))
