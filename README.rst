@@ -35,7 +35,7 @@ easier to implement. As a bonus, it actually serves as a runnable example which
 computes the sum of the numbers entered::
 
     $ mkdir build
-    $ cp arch/mars.asm build/mars.asm
+    $ python3 compile.py -l -b mars -o build/mars.asm arch/mars.lisp
     $ python3 compile.py -b mars -o build/sample.asm sample.lisp
     $ cd build
     $ java -jar Mars.jar nc p sample.asm
