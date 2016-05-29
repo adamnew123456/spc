@@ -13,8 +13,10 @@ class BaseBackend:
     # Override this with the appropriate for of comment for the backend
     COMMENT_CHAR = '#'
 
-    def __init__(self, output, is_library, builtin_functions, builtin_types):
+    def __init__(self, output, filename, is_library, 
+                builtin_functions, builtin_types):
         self.library = is_library
+        self.filename = filename
         self.output_stream = output
         self.line = 0
         self.col = 0
@@ -24,6 +26,13 @@ class BaseBackend:
 
         self.if_labels = []
         self.while_labels = []
+
+    def error(self, line, col, fmt, *args, **kwargs):
+        """
+        Raises a CompilerError at the given location.
+        """
+        raise CompilerError(self.filename, line, col,
+            fmt, *args, **kwargs)
 
     def _type_alignment(self, type_obj):
         """
@@ -135,7 +144,8 @@ class BaseBackend:
                     # And simply have the caller provide a structure to 
                     # pre-populate. By doing this, we can avoid having to deal
                     # with the obvious question "where do we put this thing?"
-                    raise CompilerError(self.line, self.col, 'Cannot return struct from function')
+                    self.error(self.line, self.col,
+                        'Cannot return struct from function')
 
                 for param in type_obj.params:
                     check(type_obj.params)

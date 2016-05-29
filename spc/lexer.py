@@ -15,7 +15,7 @@ LOGGER = logging.getLogger('spc.lexer')
 (LEFT_PAREN, RIGHT_PAREN,
  INTEGER, IDENTIFIER, STRING) = range(5)
 
-Token = namedtuple('Token', ['type', 'content', 'line', 'column'])
+Token = namedtuple('Token', ['type', 'content', 'filename', 'line', 'column'])
 
 def to_list(lexer_stream):
     """
@@ -53,7 +53,8 @@ class Lexer:
     describe the basic syntax of that stream. Supports nesting of ( and ),
     and distinguishes between integers and identifiers.
     """
-    def __init__(self, stream):
+    def __init__(self, stream, filename):
+        self.filename = filename
         self.stream = stream
         self.buffer = deque([], 2048)
 
@@ -98,7 +99,7 @@ class Lexer:
         if column is None:
             column = self.column
 
-        return Token(tok_type, tok_text, line, column)
+        return Token(tok_type, tok_text, self.filename, line, column)
 
     def get(self):
         """

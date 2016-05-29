@@ -179,8 +179,9 @@ class Driver:
     primitive syntax elements rather than as an entire syntax tree. The backend
     is then like a SAX handler - it has methods for processing parts of the syntax.
     """
-    def __init__(self, lexed_lists, backend):
-        self.tokens = lexed_lists
+    def __init__(self, lex, backend):
+        self.filename = lex.filename
+        self.tokens = lexer.to_list(lex.lex())
         self.backend = backend
 
     def parse_type(self, chunk):
@@ -195,7 +196,7 @@ class Driver:
         """
         if isinstance(chunk, list):
             if not is_identifier(chunk[0]):
-                raise CompilerError(0, 0,
+                raise CompilerError(self.filename, 0, 0,
                     'Invalid type: {}', lexer.print_list(chunk))
 
             if chunk[0].content == 'pointer-to':
@@ -444,7 +445,7 @@ class Driver:
         """
         if isinstance(expr, list):
             if len(expr) == 0:
-                raise CompilerError(0, 0,
+                raise CompilerError(self.filename, 0, 0,
                     'Cannot have a () in an expression')
 
             if is_integer(expr[0]):
