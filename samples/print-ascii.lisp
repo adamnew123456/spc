@@ -1,11 +1,8 @@
+(require "arch/mars.lisp")
+    
 (declare
  (text (array-of byte 3))
- (main (function byte))
-
- (mars.print-string
-  (function byte string)))
-
-(import mars.print-string)
+ (main (function byte)))
 
 (define main ()
  (declare)

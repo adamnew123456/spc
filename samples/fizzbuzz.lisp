@@ -1,15 +1,12 @@
+(require "arch/mars.lisp")
+    
 (declare
- (mars.print-int (function byte integer))
- (mars.print-string (function byte string))
-
  (str.fizz (ascii "Fizz"))
  (str.buzz (ascii "Buzz"))
  (str.newline (ascii "\n"))
  (str.space (ascii " "))
 
  (main (function byte)))
-
-(import mars.print-int mars.print-string)
 
 (define main ()
  (declare

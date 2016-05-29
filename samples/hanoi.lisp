@@ -1,3 +1,5 @@
+(require "arch/mars.lisp")
+
 (declare
  (move-disk (ascii "Move disk "))
  (from-peg (ascii " from Peg "))
@@ -6,18 +8,7 @@
 
  (hanoi (function byte
          integer integer integer integer))
- (main (function byte))
-
- (mars.print-string
-  (function byte string))
- 
- (mars.print-int
-  (function byte integer))
-
- (mars.read-int
-  (function integer)))
-
-(import mars.print-string mars.print-int mars.read-int)
+ (main (function byte)))
 
 (define hanoi (src dest temp disk)
  (declare)

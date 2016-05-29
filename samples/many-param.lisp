@@ -1,15 +1,9 @@
+(require "arch/mars.asm")
+    
 (declare
  (newline (array-of byte 3))
  (three-param (function byte integer integer integer))
- (main (function byte))
-
- (mars.print-int
-  (function byte integer))
-
- (mars.print-string
-  (function byte string)))
-
-(import mars.print-int mars.print-string)
+ (main (function byte)))
 
 (define three-param (a b c)
  (declare)

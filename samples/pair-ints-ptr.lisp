@@ -1,3 +1,5 @@
+(require "arch/mars.lisp")
+    
 (declare
  (newline (array-of byte 2))
  (int-pair
@@ -8,18 +10,7 @@
   (alias (pointer-to int-pair)))
  
  (main
-  (function byte))
-
- (mars.print-int
-  (function byte integer))
-
- (mars.print-string
-  (function byte string))
-
- (mars.sbrk
-  (function (pointer-to byte) integer)))
-
-(import mars.print-int mars.print-string mars.sbrk)
+  (function byte)))
 
 (define main ()
  (declare (pair int-pair-ptr))

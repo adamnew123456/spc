@@ -1,3 +1,5 @@
+(require "arch/pair-ints.lisp")
+    
 (declare
  (newline (array-of byte 2))
  (int-pair
@@ -5,15 +7,7 @@
           (b integer)))
  
  (main
-  (function byte))
-
- (mars.print-int
-  (function byte integer))
-
- (mars.print-string
-  (function byte string)))
-
-(import mars.print-int mars.print-string)
+  (function byte)))
 
 (define main ()
  (declare (pair int-pair))

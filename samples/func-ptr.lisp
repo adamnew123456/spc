@@ -1,18 +1,12 @@
+(require "arch/mars.lisp")
+
 (declare
  (newline (ascii "\n"))
  (double (function integer integer))
  (triple (function integer integer))
  (do-42 (function integer
          (func-pointer integer integer)))
- (main (function byte))
-
- (mars.print-int
-  (function byte integer))
- 
- (mars.print-string
-  (function byte string)))
-
-(import mars.print-int mars.print-string)
+ (main (function byte)))
 
 (define double (x) 
  (declare)

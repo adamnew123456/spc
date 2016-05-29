@@ -1,8 +1,7 @@
-(declare
- (main (function byte))
- (mars.print-int (function byte integer)))
+(require "arch/mars.lisp")
 
-(import mars.print-int)
+(declare
+ (main (function byte)))
 
 (define main ()
  (declare)

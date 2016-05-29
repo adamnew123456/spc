@@ -49,28 +49,13 @@
 ;;  - Declaring string constants
 ;;  - Defining variables (via the other types)
 ;;
-;; Import is like declare, but:
-;;
-;;  - It only works with functions and global values
-;;  - The values/functions cannot be implemented in the current file - they 
-;;    are marked as external
-;;
-;; Export is like import, but it allows other modules to use the functions
-;; and values that it exports. Note that export must be after the declare 
-;; block.
+;; There are two ways to interface with other files - export and require
+;;  - (require STRING) reads in another file, and loads the definitions that the other
+;;    file exports
+;;  - (export N*) declares that the names N are available to other files
+(require "arch/mars.lisp")
+
 (declare
- (mars.sbrk
-  (function (pointer-to byte) integer))
-
- (mars.read-int
-  (function integer))
-
- (mars.print-int
-  (function byte integer))
-
- (mars.print-string
-  (function byte (pointer-to byte)))
-
  (linked-ints
   (struct (value integer)
           (next (pointer-to linked-ints))))
@@ -89,7 +74,6 @@
  (main
   (function integer)))
 
-(import mars.sbrk mars.print-int mars.read-int mars.print-string)
 (export cons-linked-ints sum-linked-ints)
 
 ;; Function definitions are different from C in four ways:

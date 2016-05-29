@@ -1,3 +1,5 @@
+(require "arch/mars.lisp")
+    
 (declare
  (newline (array-of byte 2))
 
@@ -9,18 +11,7 @@
   (function (pointer-to linked-ints)
    integer (pointer-to linked-ints)))
 
- (main (function byte))
-
- (mars.sbrk
-  (function (pointer-to byte) integer))
-
- (mars.print-int
-  (function byte integer))
-
- (mars.print-string
-  (function byte string)))
-
-(import mars.print-int mars.print-string mars.sbrk)
+ (main (function byte)))
 
 (define cons (num rest)
  (declare

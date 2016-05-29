@@ -1,11 +1,8 @@
+(require "arch/mars.lisp")
+
 (declare
  (hello-world (ascii "Hello, World!\n"))
- (main (function byte))
-
- (mars.print-string
-  (function byte string)))
-
-(import mars.print-string)
+ (main (function byte)))
 
 (define main ()
  (declare)
