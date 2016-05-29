@@ -147,8 +147,10 @@ class MarsBackend(BaseBackend):
     """
     Emits MIPS assembly code compatible with the MARS simulator.
     """
-    def __init__(self, output):
-        super().__init__(output, BUILTIN_FUNCTIONS, BUILTIN_TYPES)
+    def __init__(self, output, is_library):
+        super().__init__(output, is_library,
+                BUILTIN_FUNCTIONS, BUILTIN_TYPES)
+
         self.undefined_funcs = set()
 
         self.parent_contexts = []
@@ -408,13 +410,16 @@ class MarsBackend(BaseBackend):
             if isinstance(symbol_tbl, SymbolTable):
                 self._check_valid_types(symbol_tbl.bindings.values())
 
-        if not self.in_function:
-            self._write_instr('.text')
-            self._write_instr('    jal {}', mangle_label('main'))
-            self._write_instr('    li $v0, 10')
-            self._write_instr('    syscall')
+        if self.in_function:
+            self._write_instr('    addi $sp, $sp, -{}', 
+                self.current_context.func_stack.locals_size())
         else:
-            self._write_instr('    addi $sp, $sp, -{}', self.current_context.func_stack.locals_size())
+            self._write_instr('.text')
+
+            if not self.library:
+                self._write_instr('    jal {}', mangle_label('main'))
+                self._write_instr('    li $v0, 10')
+                self._write_instr('    syscall')
 
     def handle_imports(self, names):
         """
@@ -1391,8 +1396,8 @@ class MarsBackend(BaseBackend):
         with temp_context:
             self._compile_expression(expr, temp_context)
 
-def get_backend(output):
+def get_backend(output, is_library):
     """
     Returns the backend represented by this module.
     """
-    return MarsBackend(output)
+    return MarsBackend(output, is_library)

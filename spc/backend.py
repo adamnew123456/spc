@@ -13,7 +13,8 @@ class BaseBackend:
     # Override this with the appropriate for of comment for the backend
     COMMENT_CHAR = '#'
 
-    def __init__(self, output, builtin_functions, builtin_types):
+    def __init__(self, output, is_library, builtin_functions, builtin_types):
+        self.library = is_library
         self.output_stream = output
         self.line = 0
         self.col = 0
