@@ -46,7 +46,7 @@ for opt, arg in FLAGS:
         try:
             BACKEND = importlib.import_module('spc.backends.' + arg)
         except ImportError as err:
-            print('Invalid backend:', arg, file=sys.stderr)
+            print('Invalid backend:', arg, '(Reason: {})'.format(err), file=sys.stderr)
             sys.exit(1)
     elif opt == '-o':
         try:
@@ -69,11 +69,14 @@ if POS_ARGS:
         sys.exit(1)
 
 with IN_FILE, OUT_FILE:
-    lex = lexer.Lexer(IN_FILE)
-    lexed_lists = lexer.to_list(lex.lex())
+    if IN_FILE is sys.stdin:
+        filename = '<stdin>'
+    else:
+        filename = IN_FILE.name
 
-    backend = BACKEND.get_backend(OUT_FILE, LIBRARY)
-    drv = driver.Driver(lexed_lists, backend)
+    lex = lexer.Lexer(IN_FILE, filename)
+    backend = BACKEND.get_backend(OUT_FILE, filename, LIBRARY)
+    drv = driver.Driver(lex, backend)
     try:
         drv.compile()
     except errors.CompilerError as err:
