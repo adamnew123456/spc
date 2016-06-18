@@ -9,6 +9,7 @@ import string
 from ..backend import BaseBackend
 from ..errors import CompilerError
 from .. import expressions
+from ..function_stack import FunctionStack
 from ..require_processor import RequireProcessor
 from ..symbols import SymbolTable
 from .. import types
@@ -40,109 +41,21 @@ BUILTIN_TYPES['string'] = types.PointerTo(types.Byte)
 
 BUILTIN_FUNCTIONS = SymbolTable(is_builtin=True)
 
-class FunctionStack:
+class MarsFunctionStack(FunctionStack):
     """
-    Tracks where variables are on the function's stack.
+    Specializes the default function stack for the MARS code generator.
     """
-    # The stack discipline in use here works like this:
-    #
-    #     +-------
-    #     | arg 2
-    #     +------- offset 4
-    #     | arg 1
-    #     +------- offset 0
-    #     | $fp
-    #     +------- offset -4
-    #     | $ra
-    #     +------- offset -8
-    #     | local 1
-    #     +-------
-    #     | local 2
-    #     +-------
-    #
-    # Note that this doesn't take into account the calling convention, because
-    # this compiler pretty much ignores it. All arguments are passed on the stack,
-    # in reverse order. Functions keep all their local vars on the stack, to keep
-    # them safe during recursion, and parameters are no exception - taking them
-    # in via $a0 - $a3 would require an extra copy from the arg. register to memory
+    def _starting_locals_offset(self):
+        return -8
 
-    def __init__(self):
-        self.local_offset = -8
-        self.param_offset = 0
-        self.vars = {}
+    def _starting_param_offset(self):
+        return 0
 
-    def add_param(self, name, size, alignment):
-        """
-        Adds a new parameter to the stack.
-        """
-        self.param_offset = types.align_address(self.param_offset, alignment)
+    def _expand_stack(self, size):
+        self.backend._write_instr('    addi $sp, $sp, -{}', size)
 
-        self.vars[name] = self.param_offset
-        self.param_offset += size
-
-    def add_local(self, name, size, alignment):
-        """
-        Adds a local variable to the stack.
-        """
-        self.local_offset = (
-            types.align_address(self.local_offset - size, alignment, 
-                types.Alignment.Down))
-
-        self.vars[name] = self.local_offset
-
-    def get_temp_context(self, backend):
-        """
-        Returns a context which can be used for putting temporary values on 
-        the stack. When the context exits, the space used by the temporary
-        variables is cleaned up.
-        """
-        class TemporaryContext:
-            def __init__(self, start_offset):
-                self.tmp_offset = start_offset
-                self.total_tmp_size = 0
-
-            def __enter__(self):
-                pass
-
-            def __exit__(self, *exc_info):
-                backend._write_instr('    addi $sp, $sp, {}', self.total_tmp_size)
-
-            def add_temp(self, size, alignment):
-                """
-                Makes space for a new temporary, returning the $fp offset at 
-                which to write it.
-                """
-                old_tmp_offset = self.tmp_offset
-                self.tmp_offset = (
-                    types.align_address(self.tmp_offset - size, alignment,
-                        types.Alignment.Down))
-
-                size_used = old_tmp_offset - self.tmp_offset
-                self.total_tmp_size += size_used
-                backend._write_instr('    addi $sp, $sp, -{}', size_used)
-
-                return self.tmp_offset
-
-            def get_temp_context(self):
-                """
-                Creates a temporary context, which starts at this temporary context.
-                """
-                return TemporaryContext(self.tmp_offset)
-
-        return TemporaryContext(self.local_offset)
-
-    def locals_size(self):
-        """
-        Gets the size used by all the locals.
-        """
-        return abs(self.local_offset) - 8
-
-    def __getitem__(self, name):
-        """
-        Gets the offset to the variable on the stack, or a Register (if the
-        name was bound to one of the first four parameters)
-        """
-        return self.vars[name]
+    def _shrink_stack(self, size):
+        self.backend._write_instr('    addi $sp, $sp, {}', size)
 
 class MarsBackend(BaseBackend):
     """
@@ -170,7 +83,7 @@ class MarsBackend(BaseBackend):
                 SymbolTable(old_context.value_defns),
                 SymbolTable(old_context.type_defns),
                 SymbolTable(old_context.array_bound),
-                FunctionStack())
+                MarsFunctionStack(self))
 
     def _pop_context(self):
         """
@@ -1204,9 +1117,8 @@ class MarsBackend(BaseBackend):
 
             # The reason for going through the parameter list again, is to
             # ensure that they make it to the end of the stack 
-            # (successive param_dest values may not be successive, which we
-            # need them to be in order for the called function to know where
-            # they are)
+            # (the loop above doesn't necessarily put them in sequential order,
+            # and we need them to be)
             for param_dest, param_type in zip(rev_param_dests, rev_param_types):
                 type_size = self._type_size(param_type)
                 type_align = self._type_alignment(param_type)
