@@ -7,9 +7,9 @@ import logging
 import string
 
 from ..backend import BaseBackend
+from ..backend_utils import *
 from ..errors import CompilerError
 from .. import expressions
-from ..function_stack import FunctionStack
 from ..require_processor import RequireProcessor
 from ..symbols import SymbolTable
 from .. import types
@@ -18,23 +18,6 @@ from ..util import *
 LOGGER = logging.getLogger('spc.mars')
 
 LABEL_MAKER = make_label_maker()
-
-# A context is a bundle of symbol tables for values, functions, and types.
-#
-# The need for array_bound comes about because arrays are treated like pointers,
-# but are referenced differently - their 'value' is their address (not the value
-# of their first element), and they can't actually be assigned to (since they
-# are a label for a hunk of memory)
-Context = namedtuple('Context', ['value_defns', 'type_defns', 'array_bound', 'func_stack'])
-
-# While loops are identified by two labels - the start label, for re-running
-# the condition, and the end label, for exiting when the condition is false
-WhileLabels = namedtuple('WhileLabels', ['cond', 'exit'])
-
-# If conditions are identified by two labels - the else label, for when
-# the condition is false (to skip the then block) and the end label, for
-# when the condition is true (to skip the else block)
-IfLabels = namedtuple('IfLabels', ['else_body', 'end'])
 
 BUILTIN_TYPES = SymbolTable(is_builtin=True)
 BUILTIN_TYPES['string'] = types.PointerTo(types.Byte)
@@ -57,39 +40,21 @@ class MarsFunctionStack(FunctionStack):
     def _shrink_stack(self, size):
         self.backend._write_instr('    addi $sp, $sp, {}', size)
 
-class MarsBackend(BaseBackend):
+class MarsBackend(ContextMixin, ThirtyTwoMixin, BaseBackend):
     """
     Emits MIPS assembly code compatible with the MARS simulator.
     """
     def __init__(self, output, filename, is_library):
-        super().__init__(output, filename, is_library,
+        BaseBackend.__init__(self, output, filename, is_library,
                 BUILTIN_FUNCTIONS, BUILTIN_TYPES)
+
+        ContextMixin.__init__(self)
 
         self.exported = set()
         self.undefined_funcs = set()
 
-        self.parent_contexts = []
-        self.current_context = Context(self.def_vals, self.def_types, 
-            SymbolTable(), None)
-
-    def _push_context(self):
-        """
-        Pushes a new binding context.
-        """
-        old_context = self.current_context
-        self.parent_contexts.append(old_context)
-
-        self.current_context = Context(
-                SymbolTable(old_context.value_defns),
-                SymbolTable(old_context.type_defns),
-                SymbolTable(old_context.array_bound),
-                MarsFunctionStack(self))
-
-    def _pop_context(self):
-        """
-        Loads the previous binding context.
-        """
-        self.current_context = self.parent_contexts.pop()
+    def _make_func_stack(self):
+        return MarsFunctionStack(self)
 
     class comment_after:
         def __init__(self, fmt, *args, **kwargs):
@@ -105,74 +70,6 @@ class MarsBackend(BaseBackend):
 
             return wrapper
 
-    def _resolve_if_type_name(self, name):
-        """
-        Resolves a type name into a concrete type.
-        """
-        try:
-            return types.resolve_name(name, self.current_context.type_defns)
-        except RecursionError:
-            self.error(self.line, self.col,
-                'Type aliases too deep, when resolving "{}"', name)
-        except KeyError as exn:
-            self.error(self.line, self.col, 
-                'Invalid type "{}"', str(exn))
-
-    def _type_alignment(self, type_obj):
-        """
-        Returns alignment of the given type (1 for byte, 4 for word, etc.)
-        """
-        type_obj = self._resolve_if_type_name(type_obj)
-
-        if type_obj is types.Integer:
-            return 4
-        elif type_obj is types.Byte:
-            return 1
-        elif isinstance(type_obj, (types.PointerTo, types.FunctionPointer)):
-            return 4
-        elif isinstance(type_obj, types.ArrayOf):
-            return self._type_alignment(type_obj.type)
-        elif isinstance(type_obj, types.Struct):
-            # The alignment only concerns the first element of the struct - 
-            # the struct's internal alignment doesn't come into play
-            #
-            # Also, an OrderdDict's fields are not iterable, for whatever reason
-            struct_types = list(type_obj.fields.values())
-            return self._type_alignment(struct_types[0])
-        else:
-            raise TypeError('Not a compiler type: {}'.format(type_obj))
-
-    def _type_size(self, type_obj, depth=0):
-        """
-        Returns the size of a type object in bytes.
-        """
-        MAX_DEPTH = 100
-
-        if depth >= MAX_DEPTH:
-            self.error(self.line, self.col,
-                "Type nested too deeply - potential self-referential type")
-
-        type_obj = self._resolve_if_type_name(type_obj)
-
-        if type_obj is types.Integer:
-            return 4
-        elif type_obj is types.Byte:
-            return 1
-        elif isinstance(type_obj, (types.PointerTo, types.FunctionPointer)):
-            return 4
-        elif isinstance(type_obj, types.ArrayOf):
-            # To avoid wasting space on the last element, this pads all the
-            # elements but the last
-            base_size = self._type_size(type_obj.type)
-            return self._array_offset(type_obj, type_obj.count - 1) + base_size
-        elif isinstance(type_obj, types.Struct):
-            last_field = list(type_obj.fields)[-1]
-            last_field_type = type_obj.fields[last_field]
-
-            last_field_offset = self._field_offset(type_obj, last_field)
-            return last_field_offset + self._type_size(last_field_type)
-        else:
-            raise TypeError('Not a compiler type: {}'.format(type_obj))
 
     def handle_begin_program(self):
         """
