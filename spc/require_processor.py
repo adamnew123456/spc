@@ -86,7 +86,7 @@ class RequireProcessor(EmptyBackend):
 
         try:
             req_processor = RequireProcessor.require(filename)
-            if reg_processor is None:
+            if req_processor is None:
                 return
 
             for type_name, type_obj in req_processor.exported_types:
