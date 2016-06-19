@@ -40,7 +40,7 @@ class FunctionStack:
     def __init__(self, backend):
         self.backend = backend
         self.local_offset = self._starting_locals_offset()
-        self.param_offset = 0
+        self.param_offset = self._starting_param_offset()
         self.vars = {}
 
     def _starting_locals_offset(self):
