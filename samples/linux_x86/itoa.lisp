@@ -1,12 +1,8 @@
 (require "arch/linux_x86.lisp")
 
 (declare
-  (str.newline (ascii "\n"))
-  (str.fizz (ascii "Fizz"))
-  (str.buzz (ascii "Buzz"))
-
-  (strrev (function byte string))
   (strlen (function integer string))
+  (strrev (function byte string))
   (print (function byte string))
   (itoa (function byte integer string))
   (main (function byte)))
@@ -44,11 +40,12 @@
 
 ;; Writes the given string to standard output
 (define print (str)
-  (declare)
+  (declare
+   (newline (ascii "\n")))
   (block
-    (linux.write 1 str (strlen str))))
+    (linux.write 1 str (strlen str))
+    (linux.write 1 newline 1)))
 
-;; Converts the given string to an integer, placing it in the given buffer
 (define itoa (x buffer)
  (declare
   (index integer))
@@ -72,25 +69,17 @@
     (strrev buffer)))))
 
 (define main ()
-  (declare
-    (str.intbuff (ascii "   "))
-    (i integer)
-    (even3 integer)
-    (even5 integer))
-  (block
-    (set i 1)
-    (while (<= i 100)
-     (block 
-      (set even3 (== (% i 3) 0)) 
-      (set even5 (== (% i 5) 0)) 
+ (declare
+  (str.intbuff (ascii "   ")))
+ (block
+  (itoa 304 str.intbuff)
+  (print str.intbuff)
 
-      (if (! (|| even3 even5)) 
-       (block
-        (itoa i str.intbuff)
-        (print str.intbuff))
-       (block 
-        (if even3 (print str.fizz)) 
-        (if even5 (print str.buzz)))) 
-      
-      (print str.newline) 
-      (set i (+ i 1))))))
+  (itoa 0 str.intbuff)
+  (print str.intbuff)
+
+  (itoa (! 0) str.intbuff)
+  (print str.intbuff)
+
+  (itoa (! 1) str.intbuff)
+  (print str.intbuff)))

@@ -1,15 +1,34 @@
 (require "arch/linux_x86.lisp")
 
 (declare
-  (str.newline (ascii "\n"))
-  (str.fizz (ascii "Fizz"))
-  (str.buzz (ascii "Buzz"))
+ (newline (ascii "\n"))
+ (intbuff (ascii "   "))
+ 
+ (strrev (function byte string))
+ (strlen (function integer string))
+ (print (function byte string))
+ (itoa (function byte integer string))
+ (atoi (function integer string))
+ (main (function byte)))
 
-  (strrev (function byte string))
-  (strlen (function integer string))
-  (print (function byte string))
-  (itoa (function byte integer string))
-  (main (function byte)))
+(define atoi (buffer)
+ (declare
+  (accum integer)
+  (index integer))
+
+ (block
+  (set index 0)
+  (set accum 0)
+
+  (while (byte-to-int (array buffer index))
+   (block
+    (set accum (* accum 10))
+    (set accum 
+     (+ accum (- (byte-to-int (array buffer index)) 48)))
+
+    (set index (+ index 1))))
+
+  (return accum)))
 
 ;; Computes the length of the given string
 (define strlen (str)
@@ -48,7 +67,6 @@
   (block
     (linux.write 1 str (strlen str))))
 
-;; Converts the given string to an integer, placing it in the given buffer
 (define itoa (x buffer)
  (declare
   (index integer))
@@ -72,25 +90,8 @@
     (strrev buffer)))))
 
 (define main ()
-  (declare
-    (str.intbuff (ascii "   "))
-    (i integer)
-    (even3 integer)
-    (even5 integer))
-  (block
-    (set i 1)
-    (while (<= i 100)
-     (block 
-      (set even3 (== (% i 3) 0)) 
-      (set even5 (== (% i 5) 0)) 
-
-      (if (! (|| even3 even5)) 
-       (block
-        (itoa i str.intbuff)
-        (print str.intbuff))
-       (block 
-        (if even3 (print str.fizz)) 
-        (if even5 (print str.buzz)))) 
-      
-      (print str.newline) 
-      (set i (+ i 1))))))
+ (declare
+  (x integer))
+ (block
+  (itoa 57 intbuff)
+  (set x (atoi intbuff))))

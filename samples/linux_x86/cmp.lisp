@@ -4,9 +4,14 @@
  (str.yes (ascii "YES\n"))
  (str.no (ascii "NO\n"))
 
+ (breakpoint (function byte))
  (say-yes (function byte))
  (say-no (function byte))
  (main (function byte)))
+
+(define breakpoint ()
+ (declare)
+ (block))
 
 (define say-yes ()
  (declare)
@@ -21,7 +26,8 @@
 (define main ()
  (declare
   (i integer)
-  (j integer))
+  (j integer)
+  (k integer))
 
  (block
   (set i 10)
@@ -38,4 +44,29 @@
   (if (<= i i) (say-yes) (say-no))
 
   (if (== i j) (say-no) (say-yes))
-  (if (!= i j) (say-yes) (say-no))))
+  (if (!= i j) (say-yes) (say-no))
+  
+  (breakpoint)
+  (set k (> j i)) ;; 1 OK
+  (breakpoint)
+  (set k (< j i)) ;; 0 OK
+  (breakpoint)
+
+  (set k (>= j i)) ;; 1 OK
+  (breakpoint)
+  (set k (>= j j)) ;; 1 OK
+  (breakpoint)
+
+  (set k (<= j i)) ;; 0 OK
+  (breakpoint)
+  (set k (<= j j)) ;; 1 OK
+  (breakpoint)
+
+  (set k (== j i)) ;; 0 OK
+  (breakpoint)
+  (set k (== j j)) ;; 1 OK
+  (breakpoint)
+  (set k (!= j i)) ;; 1 OK
+  (breakpoint)
+  (set k (!= j j)) ;; 0 OK
+  ))
