@@ -28,6 +28,20 @@ class MarsFunctionStack(FunctionStack):
     """
     Specializes the default function stack for the MARS code generator.
     """
+
+    #
+    # Stack layout:
+    #
+    #   |  ...    |
+    #   | param_2 |
+    #   | param_1 |__/-- $fp
+    #   | old_fp  |__/-- -4($fp)
+    #   | old_ra  |__/-- -8($fp)
+    #   | local_1 |
+    #   | local_2 |
+    #   |  ...    |
+    #
+
     def _starting_locals_offset(self):
         return -8
 
@@ -69,7 +83,6 @@ class MarsBackend(ContextMixin, ThirtyTwoMixin, BaseBackend):
                 return x
 
             return wrapper
-
 
     def handle_begin_program(self):
         """
@@ -315,16 +328,33 @@ class MarsBackend(ContextMixin, ThirtyTwoMixin, BaseBackend):
                 len(func_defn.params), len(params))
 
         self._write_comment('== Binding parameters ==')
+
+        # The reason for padding both above and below the params is explained
+        # in the code which handles the Call expression 
+
+        first_arg = True
+        last_alignment = None
         for param, param_type in zip(params, func_defn.params):
             param_type = self._resolve_if_type_name(param_type)
 
             type_size = self._type_size(param_type)
             alignment = self._type_alignment(param_type)
+            last_alignment = alignment
+            
+            if first_arg and alignment % 4 != 0:
+                self._write_comment('Head Padding {} bytes', 4 - (alignment % 4))
+                self.current_context.func_stack.pad_param(4 - (alignment % 4))
+                first_arg = False
+
             self.current_context.func_stack.add_param(param, type_size, alignment)
 
             self._write_comment('  Declaring parameter {} :: {} at {}($fp)', 
                 param, param_type, self.current_context.func_stack.param_offset - type_size)
             self.current_context.value_defns[param] = param_type
+
+        if last_alignment is not None and last_alignment % 4 != 0:
+            self._write_comment('Tail Padding {} bytes', 4 - (last_alignment % 4))
+            self.current_context.pad_param(4 - (last_alignment % 4))
 
         self.func_ret_type = self._resolve_if_type_name(func_defn.return_type)
 
@@ -1016,14 +1046,59 @@ class MarsBackend(ContextMixin, ThirtyTwoMixin, BaseBackend):
             # ensure that they make it to the end of the stack 
             # (the loop above doesn't necessarily put them in sequential order,
             # and we need them to be)
+
+            # There are two subtle bits here that have to do with alignment:
+            # 
+            # 1. The last argument is always padded with enough space to word
+            #    align where the function's saved $fp will go
+            # 2. The first argument is always word aligned. This helps avoid
+            #    issues like the following:
+            #
+            #
+            # Caller locals: *, Args: A B, Padding: X, Callee $fp: $
+            #
+            #   |-|-|-|-|  |-|-|-|-|
+            #   |*|B|B|B|  |*|*|*|B|
+            #   |-|-|-|-|  |-|-|-|-|
+            #   |A|A|A|X|  |B|B|A|A|
+            #   |-|-|-|-|  |-|-|-|-|
+            #   |$|$|$|$|  |A|X|X|X|
+            #   |-|-|-|-|  |-|-|-|-|
+            #   | | | | |  |$|$|$|$|
+            #
+            # Note the different amounts of padding - 1 byte vs 3 bytes. This
+            # moves the offsets for the arguments around, which we don't want.
+            # However, if we pad after the last arg *and* before the first:
+            #
+            #   |-|-|-|-|  |-|-|-|-|
+            #   |*|X|X|X|  |*|*|*|X|
+            #   |-|-|-|-|  |-|-|-|-|
+            #   |X|B|B|B|  |X|B|B|B|
+            #   |-|-|-|-|  |-|-|-|-|
+            #   |A|A|A|X|  |A|A|A|X|
+            #   |-|-|-|-|  |-|-|-|-|
+            #   |$|$|$|$|  |$|$|$|$|
+            #
+            # Now, the argument offsets are constant, since they both use the
+            # same amount of padding between the first arg and the $fp word.
+
+            # This has the effect of padding the parameter storage location,
+            # but only in the case that its current address isn't 4-byte aligned
+            self._write_comment('-- Head Padding --')
+            temp_context.add_temp(0, 4)
+
             for param_dest, param_type in zip(rev_param_dests, rev_param_types):
                 type_size = self._type_size(param_type)
                 type_align = self._type_alignment(param_type)
+
                 copy_dest = temp_context.add_temp(type_size, type_align)
 
                 self._memcpy_opt('t1', param_type,
                     'fp', param_dest,
                     'fp', copy_dest)
+
+            self._write_comment('-- Tail Padding --')
+            temp_context.add_temp(0, 4)
 
             self._write_instr('    lw $t0, {}($fp)', func_dest)
             self._write_instr('    jalr $t0')

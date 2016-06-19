@@ -67,6 +67,12 @@ class FunctionStack:
         """
         raise NotImplementedError
 
+    def pad_param(self, space):
+        """
+        Adds blank space before the next parameter.
+        """
+        self.param_offset += space
+
     def add_param(self, name, size, alignment):
         """
         Adds a new parameter to the stack.
