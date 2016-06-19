@@ -2,7 +2,6 @@
 MARS compiler backend - responsible for taking program events emitted by the
 driver and converting them into code.
 """
-from collections import namedtuple
 import logging
 import string
 
@@ -347,9 +346,6 @@ class MarsBackend(ContextMixin, ThirtyTwoMixin, BaseBackend):
                 first_arg = False
 
             self.current_context.func_stack.add_param(param, type_size, alignment)
-
-            self._write_comment('  Declaring parameter {} :: {} at {}($fp)', 
-                param, param_type, self.current_context.func_stack.param_offset - type_size)
             self.current_context.value_defns[param] = param_type
 
         if last_alignment is not None and last_alignment % 4 != 0:
@@ -723,9 +719,6 @@ class MarsBackend(ContextMixin, ThirtyTwoMixin, BaseBackend):
 
                 return dest_offset, element_type
         elif isinstance(expr, expressions.Field):
-            # by_ref makes sense for fields, since the address of the final
-            # field can be assigned to
-
             # Note that intermediate fields can always be loaded by reference,
             # since structs always have memory locations
             struct_dest, struct_type = (

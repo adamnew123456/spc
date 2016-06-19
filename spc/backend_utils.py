@@ -2,9 +2,12 @@
 Utility functions and classes shared by multiple backends
 """
 from collections import namedtuple
+import logging
 
 from .symbols import SymbolTable
 from . import types
+
+LOGGER = logging.getLogger('spc.backend_utils')
 
 # A context is a bundle of symbol tables for values, functions, and types.
 #
@@ -82,6 +85,8 @@ class FunctionStack:
         self.vars[name] = self.param_offset
         self.param_offset += size
 
+        self.backend._write_comment('Binding param "{}" to offset {}', name, self.vars[name])
+
     def add_local(self, name, size, alignment):
         """
         Adds a local variable to the stack.
@@ -91,6 +96,7 @@ class FunctionStack:
                 types.Alignment.Down))
 
         self.vars[name] = self.local_offset
+        self.backend._write_comment('Binding local "{}" to offset {}', name, self.vars[name])
 
     def get_temp_context(self, backend):
         """

@@ -267,7 +267,7 @@ class Driver:
             (ref EXPRESSION)
             (deref EXPRESSION)
             (ptr-to-int EXPRESSION)
-            (int-to-ptr TYPE EXPRESSION)
+            (int-to-ptr EXPRESSION TYPE)
             (cast TYPE EXPRESSION)
 
             (byte-to-int EXPRESSION)
