@@ -17,10 +17,6 @@ It is only of interest for educational purposes, since it is:
   which could be cleaned up and separated from the backend. As it stands, all
   of the stuff that isn't verifying that the syntax is good is left up to the
   specific target backend.
-- Single Target: This could be expanded, but it isn't all that important of a
-  goal. Right now, the only target is the MARS simulator, and even then, it's
-  somewhat of a bad citizen (not following the calling conventions fully is
-  the biggest problem, although there's a reason)
 
 Other than that, it produces code for a language which is pretty much on the
 same abstractive level as C - but, the language is organized explicitly to be
@@ -34,10 +30,10 @@ types and functions, notes about the restrictions which make the compiler somewh
 easier to implement. As a bonus, it actually serves as a runnable example which
 computes the sum of the numbers entered::
 
-    $ mkdir build
-    $ python3 compile.py -l -b mars -o build/mars.asm arch/mars.lisp
-    $ python3 compile.py -b mars -o build/sample.asm sample.lisp
-    $ cd build
+    $ mkdir -p build/mars
+    $ python3 compile.py -l -b mars -o build/mars/mars.asm arch/mars.lisp
+    $ python3 compile.py -b mars -o build/mars/sample.asm sample.lisp
+    $ cd build/mars
     $ java -jar Mars.jar nc p sample.asm
     5
     10
@@ -45,12 +41,21 @@ computes the sum of the numbers entered::
     0
     30
 
-If you are running on a Unix-like system, you can also use the Makefile to build
-the various samples::
+Compiling Things
+================
 
-    $ mkdir build
-    $ make build/fizzbuzz.asm
-    $ cd build
+Run ``python3 compiler.py -h`` to see the compiler's help. Currently, there
+two backends:
+
+- ``mars``, for the MARS educational MIPS simulator.
+- ``linux_x86``, for Linux running on 32-bit Intel processors. This has been
+  tested with the GNU ``as`` assembler and the GNU ``ld`` linker.
+
+All the samples that come with the compiler can be compiled via the Makefile.
+GNU Make (or a make with basic pattern rules support) is required::
+
+    $ make build/mars/fizzbuzz.asm
+    $ cd build/mars
     $ java -jar Mars.jar nc p fizzbuzz.asm
     1
     2
@@ -59,11 +64,18 @@ the various samples::
     Buzz
     ...
 
-Compiling Things
-================
-
-Run ``python3 compiler.py -h`` to see the compiler's help. The only backend
-right now is ``mars``.
+    $ make build/linux_x86/fizzbuzz.asm
+    $ cd build/linux_x86
+    $ as linux_x86.asm -o linux_x86.o
+    $ as fizzbuzz.asm -o fizzbuzz.o
+    $ ld fizzbuzz.o linux_x86.o -o fizzbuzz
+    $ ./fizzbuzz
+    1
+    2
+    Fizz
+    4
+    Buzz
+    ...
 
 Interesting Things
 ==================
