@@ -1,5 +1,5 @@
 """
-MARS compiler backend - responsible for taking program events emitted by the
+Linux compiler backend - responsible for taking program events emitted by the
 driver and converting them into code.
 """
 import logging
@@ -14,7 +14,16 @@ from ..symbols import SymbolTable
 from .. import types
 from ..util import *
 
-LOGGER = logging.getLogger('spc.mars')
+#
+# WARNING
+#
+# Large swaths of these comments are most likely obsolete. This source file
+# was created by copying the MARS backend and tweaking the things that
+# needed to be changed. Documentation upkeep has not been done yet, so be
+# wary of any comment in this file.
+#
+
+LOGGER = logging.getLogger('spc.linux_x86')
 
 LABEL_MAKER = make_label_maker()
 
@@ -23,40 +32,44 @@ BUILTIN_TYPES['string'] = types.PointerTo(types.Byte)
 
 BUILTIN_FUNCTIONS = SymbolTable(is_builtin=True)
 
-class MarsFunctionStack(FunctionStack):
+class LinuxX86Stack(FunctionStack):
     """
-    Specializes the default function stack for the MARS code generator.
+    Specializes the default function stack for the x86 Linux code 
+    generator.
     """
 
     #
     # Stack layout:
-    #
-    #   |  ...    |
+    # 
+    #   | ...     |
     #   | param_2 |
-    #   | param_1 |__/-- $fp
-    #   | old_fp  |__/-- -4($fp)
-    #   | old_ra  |__/-- -8($fp)
+    #   | param_1 |__/-- 8(%ebp)
+    #   | <ret>   |__/-- 4(%ebp)
+    #   | old_ebp |__/-- %ebp
     #   | local_1 |
     #   | local_2 |
-    #   |  ...    |
+    #   | ...     |
     #
 
     def _starting_locals_offset(self):
-        return -8
-
-    def _starting_param_offset(self):
         return 0
 
+    def _starting_param_offset(self):
+        return 8
+
     def _expand_stack(self, size):
-        self.backend._write_instr('    addi $sp, $sp, -{}', size)
+        self.backend._write_instr('    sub ${}, %esp', size)
 
     def _shrink_stack(self, size):
-        self.backend._write_instr('    addi $sp, $sp, {}', size)
+        self.backend._write_instr('    add ${}, %esp', size)
 
-class MarsBackend(ContextMixin, ThirtyTwoMixin, BaseBackend):
+class LinuxX86Backend(ContextMixin, ThirtyTwoMixin, BaseBackend):
     """
-    Emits MIPS assembly code compatible with the MARS simulator.
+    Emits AT&T-style assembly code, suitable for compilation via the GAS 
+    assembler on 32-bit Intel Linux.
     """
+    COMMENT_FMT = '/* {} */'
+
     def __init__(self, output, filename, is_library):
         BaseBackend.__init__(self, output, filename, is_library,
                 BUILTIN_FUNCTIONS, BUILTIN_TYPES)
@@ -67,7 +80,7 @@ class MarsBackend(ContextMixin, ThirtyTwoMixin, BaseBackend):
         self.undefined_funcs = set()
 
     def _make_func_stack(self):
-        return MarsFunctionStack(self)
+        return LinuxX86Stack(self)
 
     class comment_after:
         def __init__(self, fmt, *args, **kwargs):
@@ -156,11 +169,11 @@ class MarsBackend(ContextMixin, ThirtyTwoMixin, BaseBackend):
                 self.current_context.func_stack.add_local(name, len(escaped), 1)
                 base_addr = self.current_context.func_stack.local_offset
                 for idx, byte in enumerate(escaped):
-                    self._write_instr('    li $t0, {}', byte)
-                    self._write_instr('    sb $t0, {}($fp)', base_addr + idx)
+                    self._write_instr('    movb ${}, %al', byte)
+                    self._write_instr('    movb %eax, {}(%ebp)', base_addr + idx)
             else:
                 self._write_instr('{}:', mangle_label(name))
-                self._write_instr('    .asciiz "{}"',
+                self._write_instr('    .string "{}"',
                     decl_type.bytes.decode('ascii'))
         elif was_type_name or isinstance(decl_type, types.RAW_TYPES):
             self._write_comment('  Declaring variable {} :: {}', name, decl_type)
@@ -226,15 +239,18 @@ class MarsBackend(ContextMixin, ThirtyTwoMixin, BaseBackend):
                 self._check_valid_types(symbol_tbl.bindings.values())
 
         if self.in_function:
-            self._write_instr('    addi $sp, $sp, -{}', 
+            self._write_instr('    add $-{}, %esp', 
                 self.current_context.func_stack.locals_size())
         else:
             self._write_instr('.text')
 
             if not self.library:
-                self._write_instr('    jal {}', mangle_label('main'))
-                self._write_instr('    li $v0, 10')
-                self._write_instr('    syscall')
+                self._write_instr('.global _start')
+                self._write_instr('_start:')
+                self._write_instr('    call {}', mangle_label('main'))
+                self._write_instr('    movl $1, %eax')
+                self._write_instr('    movl $0, %ebx')
+                self._write_instr('    int $0x80')
 
     def handle_require(self, filename):
         """
@@ -293,15 +309,7 @@ class MarsBackend(ContextMixin, ThirtyTwoMixin, BaseBackend):
                 self.error(self.line, self.col,
                     'Cannot export value of type "{}"', type_of)
 
-            if isinstance(type_of, types.FunctionDecl):
-                self._write_instr('.globl {}', mangle_label(name))
-            else:
-                if name in self.current_context.array_bound:
-                    size = self.current_context.array_bound[name]
-                else:
-                    size = self._type_size(name)
-
-                self._write_instr('.extern {}, {}', mangle_label(name), size)
+            self._write_instr('.global {}', mangle_label(name))
 
     def handle_func_def_start(self, name, params):
         """
@@ -338,7 +346,7 @@ class MarsBackend(ContextMixin, ThirtyTwoMixin, BaseBackend):
             type_size = self._type_size(param_type)
             alignment = self._type_alignment(param_type)
             last_alignment = alignment
-            
+
             if first_arg and alignment % 4 != 0:
                 self._write_comment('Head Padding {} bytes', 4 - (alignment % 4))
                 self.current_context.func_stack.pad_param(4 - (alignment % 4))
@@ -357,10 +365,8 @@ class MarsBackend(ContextMixin, ThirtyTwoMixin, BaseBackend):
         self._write_instr('{}:', func_label)
 
         # Setup the function's stack frame before adding any other code
-        self._write_instr('    sw $fp, -4($sp)')
-        self._write_instr('    sw $ra, -8($sp)')
-        self._write_instr('    addi $fp, $sp, 0')
-        self._write_instr('    addi $sp, $sp, -8')
+        self._write_instr('    pushl %ebp')
+        self._write_instr('    movl %esp, %ebp')
 
     def handle_func_def_end(self):
         """
@@ -370,11 +376,10 @@ class MarsBackend(ContextMixin, ThirtyTwoMixin, BaseBackend):
         """
         self._write_instr('{}:', self.func_exit_label)
 
-        frame_size = self.current_context.func_stack.locals_size() + 8
-        self._write_instr('    addi $sp, $sp, {}', frame_size)
-        self._write_instr('    lw $fp, -4($sp)')
-        self._write_instr('    lw $ra, -8($sp)')
-        self._write_instr('    jr $ra')
+        frame_size = self.current_context.func_stack.locals_size()
+        self._write_instr('    add ${}, %esp', frame_size)
+        self._write_instr('    popl %ebp')
+        self._write_instr('    ret')
 
         self._pop_context()
 
@@ -423,8 +428,10 @@ class MarsBackend(ContextMixin, ThirtyTwoMixin, BaseBackend):
         the input value is of the right type.
         """
         if isinstance(type_obj, (types.IntegerType, types.PointerTo, types.FunctionPointer)):
-            self._write_instr('    lw ${}, {}(${})', tmp_reg, src_start_offset, src_start_reg)
-            self._write_instr('    sw ${}, {}(${})', tmp_reg, dest_start_offset, dest_start_reg)
+            self._write_instr('    movl {offset}({start}), {tmp}', 
+                tmp=tmp_reg, offset=src_start_offset, start=src_start_reg)
+            self._write_instr('    movl {tmp}, {offset}({dest})', 
+                tmp=tmp_reg, offset=dest_start_offset, dest=dest_start_reg)
         else:
             self._memcpy(tmp_reg, self._type_size(type_obj),
                     src_start_reg, src_start_offset, 
@@ -436,8 +443,10 @@ class MarsBackend(ContextMixin, ThirtyTwoMixin, BaseBackend):
         start to the end, using tmp_reg as the register.
         """
         for byte in range(size):
-            self._write_instr('    lb ${}, {}(${})', tmp_reg, byte + src_start_offset, src_start_reg)
-            self._write_instr('    sb ${}, {}(${})', tmp_reg, byte + dest_start_offset, dest_start_reg)
+            self._write_instr('    movb {offset}({start}), {tmp}', 
+                tmp=tmp_reg, offset=byte + src_start_offset, start=src_start_reg)
+            self._write_instr('    movb {tmp}, {offset}({dest})', 
+                tmp=tmp_reg, offset=byte + dest_start_offset, dest=dest_start_reg)
 
     @comment_after('== End ==')
     def _compile_expression(self, expr, temp_context, by_ref=False):
@@ -531,20 +540,21 @@ class MarsBackend(ContextMixin, ThirtyTwoMixin, BaseBackend):
 
             if owning_scope.is_global:
                 # Global variables are somewhere in .data land, labeled by their name
-                self._write_instr('    la $t0, {}', mangle_label(expr.name))
+                self._write_instr('    movl ${}, %eax', mangle_label(expr.name))
             elif owning_scope.is_builtin:
                 self.error(*expr.loc, 'Builtin values cannot be used, except to be called')
             else:
                 # Local variables are on the stack
                 stack_offset = self.current_context.func_stack[expr.name]
-                self._write_instr('    addi $t0, $fp, {}', stack_offset)
+                self._write_instr('    movl %ebp, %eax')
+                self._write_instr('    add ${}, %eax', stack_offset)
 
             if by_ref:
-                self._write_instr('    sw $t0, {}($fp)', dest_offset)
+                self._write_instr('    movl %eax, {}(%ebp)', dest_offset)
             else:
-                self._memcpy_opt('t1', type_of,
-                    't0', 0, 
-                    'fp', dest_offset)
+                self._memcpy_opt('%edx', type_of,
+                    '%eax', 0, 
+                    '%ebp', dest_offset)
 
             return dest_offset, type_of
         elif isinstance(expr, expressions.Integer):
@@ -555,8 +565,8 @@ class MarsBackend(ContextMixin, ThirtyTwoMixin, BaseBackend):
             dest_offset = temp_context.add_temp(self._type_size(types.Integer),
                                                 self._type_alignment(types.Integer))
 
-            self._write_instr('    li $t0, {}', expr.integer)
-            self._write_instr('    sw $t0, {}($fp)', dest_offset)
+            self._write_instr('    movl ${}, %eax', expr.integer)
+            self._write_instr('    movl %eax, {}(%ebp)', dest_offset)
             return dest_offset, types.Integer
         elif isinstance(expr, expressions.Reference):
             # by_ref doesn't make sense, since this can't be assigned directly
@@ -583,10 +593,10 @@ class MarsBackend(ContextMixin, ThirtyTwoMixin, BaseBackend):
                 type_align = self._type_alignment(expr_type.type)
                 dest_offset = temp_context.add_temp(type_size, type_align)
 
-                self._write_instr('    lw $t0, {}($fp)', expr_dest)
-                self._memcpy_opt('t1', expr_type.type,
-                    't0', 0, 
-                    'fp', dest_offset)
+                self._write_instr('    movl {}(%ebp), %eax', expr_dest)
+                self._memcpy_opt('%edx', expr_type.type,
+                    '%eax', 0, 
+                    '%ebp', dest_offset)
 
                 return dest_offset, self._resolve_if_type_name(expr_type.type)
         elif isinstance(expr, expressions.PointerToInt):
@@ -629,10 +639,10 @@ class MarsBackend(ContextMixin, ThirtyTwoMixin, BaseBackend):
             byte_align = self._type_alignment(types.Byte)
             dest_offset = temp_context.add_temp(byte_size, byte_align)
 
-            self._write_instr('    lw $t0, {}($fp)', expr_dest)
-            self._write_instr('    sll $t0, $t0, 24')
-            self._write_instr('    sra $t0, $t0, 24')
-            self._write_instr('    sb $t0, {}($fp)', dest_offset)
+            self._write_instr('    movl {}(%ebp), %eax', expr_dest)
+            self._write_instr('    shll $24, %eax')
+            self._write_instr('    sarl $24, %eax')
+            self._write_instr('    movb %eax, {}(%ebp)', dest_offset)
 
             return dest_offset, types.Byte
         elif isinstance(expr, expressions.ByteToInt):
@@ -649,8 +659,12 @@ class MarsBackend(ContextMixin, ThirtyTwoMixin, BaseBackend):
             int_align = self._type_alignment(types.Integer)
             dest_offset = temp_context.add_temp(int_size, int_align)
 
-            self._write_instr('    lb $t0, {}($fp)', expr_dest)
-            self._write_instr('    sw $t0, {}($fp)', dest_offset)
+            # GAS coerces the first %eax down to %al without modifying the 
+            # contents of %ah, which could very well have garbage in them
+            # that we don't want
+            self._write_instr('    xor %eax, %eax')
+            self._write_instr('    movb {}(%ebp), %eax', expr_dest)
+            self._write_instr('    movl %eax, {}(%ebp)', dest_offset)
 
             return dest_offset, types.Integer
         elif isinstance(expr, expressions.Cast):
@@ -701,20 +715,18 @@ class MarsBackend(ContextMixin, ThirtyTwoMixin, BaseBackend):
             #  index := load(index_dest)
             #  byte_offset := index_dest * element_size
             #  result := base + byte_offset
-            self._write_instr('    lw $t0, {}($fp)', array_dest)
-            self._write_instr('    lw $t1, {}($fp)', index_dest)
-            self._write_instr('    li $t2, {}', element_size)
-            self._write_instr('    mult $t1, $t2')
-            self._write_instr('    mflo $t1')
-            self._write_instr('    add $t0, $t0, $t1')
-
+            self._write_instr('    movl {}(%ebp), %eax', index_dest)
+            self._write_instr('    imul ${}, %eax, %ecx', element_size)
+            self._write_instr('    movl {}(%ebp), %eax', array_dest)
+            self._write_instr('    add %ecx, %eax')
+    
             if by_ref:
-                self._write_instr('    sw $t0, {}($fp)', dest_offset)
+                self._write_instr('    movl %eax, {}(%ebp)', dest_offset)
                 return dest_offset, element_type
             else:
-                self._memcpy_opt('t1', element_type,
-                    't0', 0,
-                    'fp', dest_offset)
+                self._memcpy_opt('%edx', element_type,
+                    '%eax', 0,
+                    '%ebp', dest_offset)
 
                 return dest_offset, element_type
         elif isinstance(expr, expressions.Field):
@@ -726,7 +738,7 @@ class MarsBackend(ContextMixin, ThirtyTwoMixin, BaseBackend):
             if not isinstance(struct_type, types.Struct):
                 self.error(*expr.loc, '(field s f...) requires that s be a structure')
 
-            self._write_instr('    lw $t0, {}($fp)', struct_dest)
+            self._write_instr('    movl {}(%ebp), %eax', struct_dest)
             total_offset = 0
 
             for field_name in expr.fields:
@@ -743,17 +755,17 @@ class MarsBackend(ContextMixin, ThirtyTwoMixin, BaseBackend):
                 ref_type_align = self._type_alignment(types.Integer)
                 dest_offset = temp_context.add_temp(ref_type_size, ref_type_align)
 
-                self._write_instr('    add $t0, $t0, {}', total_offset)
-                self._write_instr('    sw $t0, {}($fp)', dest_offset)
+                self._write_instr('    add ${}, %eax', total_offset)
+                self._write_instr('    movl %eax, {}(%ebp)', dest_offset)
                 return dest_offset, struct_type
             else:
                 last_field_size = self._type_size(struct_type)
                 last_field_align = self._type_alignment(struct_type)
                 dest_offset = temp_context.add_temp(last_field_size, last_field_align)
 
-                self._memcpy_opt('t1', struct_type,
-                    't0', total_offset,
-                    'fp', dest_offset)
+                self._memcpy_opt('%edx', struct_type,
+                    '%eax', total_offset,
+                    '%ebp', dest_offset)
 
                 return dest_offset, struct_type
         elif isinstance(expr, expressions.Arithmetic):
@@ -775,24 +787,41 @@ class MarsBackend(ContextMixin, ThirtyTwoMixin, BaseBackend):
             int_align = self._type_alignment(types.Integer)
             dest_offset = temp_context.add_temp(int_size, int_align)
 
-            self._write_instr('    lw $t0, {}($fp)', lhs_dest)
-            self._write_instr('    lw $t1, {}($fp)', rhs_dest)
+            self._write_instr('    movl {}(%ebp), %eax', lhs_dest)
+            self._write_instr('    movl {}(%ebp), %edx', rhs_dest)
 
             if expr.kind == expressions.ARITH_PLUS:
-                self._write_instr('    add $t0, $t0, $t1')
+                self._write_instr('    add %edx, %eax')
             elif expr.kind == expressions.ARITH_MINUS:
-                self._write_instr('    sub $t0, $t0, $t1')
+                self._write_instr('    sub %edx, %eax')
             elif expr.kind == expressions.ARITH_TIMES:
-                self._write_instr('    mult $t0, $t1')
-                self._write_instr('    mflo $t0')
+                self._write_instr('    imul %edx, %eax')
             elif expr.kind == expressions.ARITH_DIVIDE:
-                self._write_instr('    div $t0, $t1')
-                self._write_instr('    mflo $t0')
+                # This is a bit bizarre - in x86, to do the division
+                #
+                # c = a / b
+                #
+                # You have to load a into EDX:EAX (EDX are bits 63-32,
+                # EAX are bits 31-0 of this weird 64-bit integer made of
+                # those two registers mashed together). This typically
+                # involves zeroing EDX, moving a into EAX, and then
+                # sign extending EAX into EDX (via the instruction CLTD).
+                #
+                # Then, you divide this implicit argument by b, and the
+                # processor will dump the result into EAX and the remainder
+                # into EDX
+                self._write_instr('    movl %edx, %ecx')
+                self._write_instr('    xor %edx, %edx')
+                self._write_instr('    cltd')
+                self._write_instr('    idiv %ecx')
             elif expr.kind == expressions.ARITH_MOD:
-                self._write_instr('    div $t0, $t1')
-                self._write_instr('    mfhi $t0')
+                self._write_instr('    movl %edx, %ecx')
+                self._write_instr('    xor %edx, %edx')
+                self._write_instr('    cltd')
+                self._write_instr('    idiv %ecx')
+                self._write_instr('    movl %edx, %eax')
 
-            self._write_instr('    sw $t0, {}($fp)', dest_offset)
+            self._write_instr('    movl %eax, {}(%ebp)', dest_offset)
             return dest_offset, types.Integer
         elif isinstance(expr, expressions.Compare):
             if by_ref:
@@ -812,24 +841,29 @@ class MarsBackend(ContextMixin, ThirtyTwoMixin, BaseBackend):
             int_size = self._type_size(types.Integer)
             int_align = self._type_alignment(types.Integer)
             dest_offset = temp_context.add_temp(int_size, int_align)
+            skip_label = next(LABEL_MAKER)
 
-            self._write_instr('    lw $t0, {}($fp)', lhs_dest)
-            self._write_instr('    lw $t1, {}($fp)', rhs_dest)
+            self._write_instr('    movl {}(%ebp), %eax', lhs_dest)
+            self._write_instr('    movl {}(%ebp), %edx', rhs_dest)
+            self._write_instr('    cmpl %edx, %eax')
+            self._write_instr('    movl $1, %eax')
 
             if expr.kind == expressions.CMP_LESS:
-                self._write_instr('    slt $t0, $t0, $t1')
+                self._write_instr('    jl {}', skip_label)
             elif expr.kind == expressions.CMP_GREATER:
-                self._write_instr('    slt $t0, $t1, $t0')
+                self._write_instr('    jg {}', skip_label)
             elif expr.kind == expressions.CMP_LESSEQ:
-                self._write_instr('    sle $t0, $t0, $t1')
+                self._write_instr('    jle {}', skip_label)
             elif expr.kind == expressions.CMP_GREATEQ:
-                self._write_instr('    sle $t0, $t1, $t0')
+                self._write_instr('    jge {}', skip_label)
             elif expr.kind == expressions.CMP_EQ:
-                self._write_instr('    seq $t0, $t0, $t1')
+                self._write_instr('    je {}', skip_label)
             elif expr.kind == expressions.CMP_NOTEQ:
-                self._write_instr('    sne $t0, $t0, $t1')
+                self._write_instr('    jne {}', skip_label)
 
-            self._write_instr('    sw $t0, {}($fp)', dest_offset)
+            self._write_instr('    xor %eax, %eax')
+            self._write_instr('{}:', skip_label)
+            self._write_instr('    movl %eax, {}(%ebp)', dest_offset)
             return dest_offset, types.Integer
         elif isinstance(expr, (expressions.BitAnd, expressions.BitOr, expressions.BitXor,
                                 expressions.BitShiftLeft, expressions.BitShiftRight)):
@@ -851,24 +885,24 @@ class MarsBackend(ContextMixin, ThirtyTwoMixin, BaseBackend):
             int_align = self._type_alignment(types.Integer)
             dest_offset = temp_context.add_temp(int_size, int_align)
 
-            self._write_instr('    lw $t0, {}($fp)', lhs_dest)
-            self._write_instr('    lw $t1, {}($fp)', rhs_dest)
+            self._write_instr('    movl {}(%ebp), %eax', lhs_dest)
+            self._write_instr('    movl {}(%ebp), %edx', rhs_dest)
 
             if isinstance(expr, expressions.BitAnd):
-                self._write_instr('    and $t0, $t0, $t1')
+                self._write_instr('    andl %edx, %eax')
             elif isinstance(expr, expressions.BitOr):
-                self._write_instr('    or $t0, $t0, $t1')
+                self._write_instr('    orl %edx, %eax')
             elif isinstance(expr, expressions.BitXor):
-                self._write_instr('    xor $t0, $t0, $t1')
+                self._write_instr('    xorl %edx, %eax')
             elif isinstance(expr, expressions.BitShiftLeft):
-                self._write_instr('    sllv $t0, $t0, $t1')
+                self._write_instr('    shll %edx, %eax')
             elif isinstance(expr, expressions.BitShiftRight):
                 if expr.sign_extend:
-                    self._write_instr('    srav $t0, $t0, $t1')
+                    self._write_instr('    shrl %edx, %eax')
                 else:
-                    self._write_instr('    srlv $t0, $t0, $t1')
+                    self._write_instr('    sarl %edx, %eax')
 
-            self._write_instr('    sw $t0, {}($fp)', dest_offset)
+            self._write_instr('    movl %eax, {}(%ebp)', dest_offset)
             return dest_offset, types.Integer
         elif isinstance(expr, expressions.BitNot):
             if by_ref:
@@ -884,9 +918,9 @@ class MarsBackend(ContextMixin, ThirtyTwoMixin, BaseBackend):
             int_align = self._type_alignment(types.Integer)
             dest_offset = temp_context.add_temp(int_size, int_align)
 
-            self._write_instr('    lw $t0, {}($fp)', expr_dest)
-            self._write_instr('    nor $t0, $t0, $0')
-            self._write_instr('    sw $t0, {}($fp)', dest_offset)
+            self._write_instr('    movl {}(%ebp), %eax', expr_dest)
+            self._write_instr('    not %eax')
+            self._write_instr('    movl %eax, {}(%ebp)', dest_offset)
             return dest_offset, types.Integer
 
         elif isinstance(expr, expressions.And):
@@ -914,8 +948,9 @@ class MarsBackend(ContextMixin, ThirtyTwoMixin, BaseBackend):
                 self.error(*expr.loc, 
                     'Logical expression requires integer on LHS')
 
-            self._write_instr('    lw $t0, {}($fp)', lhs_dest)
-            self._write_instr('    beq $t0, $0, {}', end_label)
+            self._write_instr('    movl {}(%ebp), %eax', lhs_dest)
+            self._write_instr('    cmpl $0, %eax')
+            self._write_instr('    jz {}', end_label)
 
             # The reason for the sub-context here is that there is an extra stack
             # allocation in the case where the expression doesn't short circuit,
@@ -928,10 +963,10 @@ class MarsBackend(ContextMixin, ThirtyTwoMixin, BaseBackend):
                     self.error(*expr.loc, 
                         'Logical expression requires integer on RHS')
 
-                self._write_instr('    lw $t0, {}($fp)', rhs_dest)
+                self._write_instr('    movl {}(%ebp), %eax', rhs_dest)
 
             self._write_instr('{}:', end_label)
-            self._write_instr('    sw $t0, {}($fp)', dest_offset)
+            self._write_instr('    movl %eax, {}(%ebp)', dest_offset)
 
             return dest_offset, types.Integer
         elif isinstance(expr, expressions.Or):
@@ -959,8 +994,9 @@ class MarsBackend(ContextMixin, ThirtyTwoMixin, BaseBackend):
                 self.error(*expr.loc, 
                     'Logical expression requires integer on LHS')
 
-            self._write_instr('    lw $t0, {}($fp)', lhs_dest)
-            self._write_instr('    bne $t0, $0, {}', end_label)
+            self._write_instr('    movl {}(%ebp), %eax', lhs_dest)
+            self._write_instr('    cmpl $0, %eax')
+            self._write_instr('    jnz {}', end_label)
 
             sub_context = temp_context.get_temp_context()
             with sub_context:
@@ -970,10 +1006,10 @@ class MarsBackend(ContextMixin, ThirtyTwoMixin, BaseBackend):
                     self.error(*expr.loc, 
                         'Logical expression requires integer on RHS')
 
-                self._write_instr('    lw $t0, {}($fp)', rhs_dest)
+                self._write_instr('    movl {}(%ebp), %eax', rhs_dest)
 
             self._write_instr('{}:', end_label)
-            self._write_instr('    sw $t0, {}($fp)', dest_offset)
+            self._write_instr('    movl %eax, {}(%ebp)', dest_offset)
 
             return dest_offset, types.Integer
         elif isinstance(expr, expressions.Not):
@@ -990,9 +1026,18 @@ class MarsBackend(ContextMixin, ThirtyTwoMixin, BaseBackend):
             int_align = self._type_alignment(types.Integer)
             dest_offset = temp_context.add_temp(int_size, int_align)
 
-            self._write_instr('    lw $t0, {}($fp)', expr_dest)
-            self._write_instr('    seq $t0, $t0, $0')
-            self._write_instr('    sw $t0, {}($fp)', dest_offset)
+            # This is a bit wonky, since x86 doesn't have an equivalent to
+            # the MARS set if equal. Instead, zero %eax and reassign it only
+            # if the condition fails
+            skip_label = next(LABEL_MAKER)
+
+            self._write_instr('    movl {}(%ebp), %eax', expr_dest)
+            self._write_instr('    cmpl $0, %eax')
+            self._write_instr('    movl $0, %eax')
+            self._write_instr('    jnz {}', skip_label)
+            self._write_instr('    movl $1, %eax')
+            self._write_instr('{}:', skip_label)
+            self._write_instr('    movl %eax, {}(%ebp)', dest_offset)
 
             return dest_offset, types.Integer
         elif isinstance(expr, expressions.SizeOf):
@@ -1004,8 +1049,8 @@ class MarsBackend(ContextMixin, ThirtyTwoMixin, BaseBackend):
             dest_offset = temp_context.add_temp(int_size, int_align)
 
             type_obj = self._resolve_if_type_name(expr.type)
-            self._write_instr('    li $t0, {}', self._type_size(type_obj))
-            self._write_instr('    sw $t0, {}($fp)', dest_offset)
+            self._write_instr('    movl ${}, %eax', self._type_size(type_obj))
+            self._write_instr('    movl %eax, {}(%ebp)', dest_offset)
             return dest_offset, types.Integer
         elif isinstance(expr, expressions.Call):
             if by_ref:
@@ -1037,7 +1082,6 @@ class MarsBackend(ContextMixin, ThirtyTwoMixin, BaseBackend):
             # The reason for going through the parameter list again, is to
             # ensure that they make it to the end of the stack 
             # (the loop above doesn't necessarily put them in sequential order,
-            # and we need them to be)
 
             # There are two subtle bits here that have to do with alignment:
             # 
@@ -1082,18 +1126,17 @@ class MarsBackend(ContextMixin, ThirtyTwoMixin, BaseBackend):
             for param_dest, param_type in zip(rev_param_dests, rev_param_types):
                 type_size = self._type_size(param_type)
                 type_align = self._type_alignment(param_type)
-
                 copy_dest = temp_context.add_temp(type_size, type_align)
 
-                self._memcpy_opt('t1', param_type,
-                    'fp', param_dest,
-                    'fp', copy_dest)
+                self._memcpy_opt('%edx', param_type,
+                    '%ebp', param_dest,
+                    '%ebp', copy_dest)
 
             self._write_comment('-- Tail Padding --')
             temp_context.add_temp(0, 4)
 
-            self._write_instr('    lw $t0, {}($fp)', func_dest)
-            self._write_instr('    jalr $t0')
+            self._write_instr('    movl {}(%ebp), %eax', func_dest)
+            self._write_instr('    call *%eax')
 
             return_type = self._resolve_if_type_name(func_type.return_type)
             return_type_size = self._type_size(return_type)
@@ -1104,11 +1147,11 @@ class MarsBackend(ContextMixin, ThirtyTwoMixin, BaseBackend):
             # Since structure return types are not allowed, the most we'll be
             # copying is a full word
             instr = {
-                1: 'sb',
-                2: 'sh',
-                4: 'sw',
+                1: 'movb',
+                2: 'movw',
+                4: 'movl',
             }[return_type_size]
-            self._write_instr('    {} $v0, {}($fp)', instr, return_dest)
+            self._write_instr('    {} %eax, {}(%ebp)', instr, return_dest)
 
             return return_dest, return_type
 
@@ -1134,12 +1177,12 @@ class MarsBackend(ContextMixin, ThirtyTwoMixin, BaseBackend):
 
             # We have to do a dereference here, since the effect of loading
             # by_ref is that we get an address rather than a value
-            self._write_instr('    lw $t0, {}($fp)', assign_dest)
+            self._write_instr('    movl {}(%ebp), %eax', assign_dest)
 
             assign_size = self._type_size(assign_type)
-            self._memcpy_opt('t1', assign_type,
-                'fp', value_dest,
-                't0', 0)
+            self._memcpy_opt('%edx', assign_type,
+                '%ebp', value_dest,
+                '%eax', 0)
 
     def handle_if(self, cond):
         """
@@ -1159,13 +1202,14 @@ class MarsBackend(ContextMixin, ThirtyTwoMixin, BaseBackend):
             if cond_type is not types.Integer:
                 self.error(*cond.loc, 'Conditional must be an integer')
 
-            self._write_instr('    lw $t0, {}($fp)', cond_dest)
+            self._write_instr('    movl {}(%ebp), %eax', cond_dest)
 
         # The position outside the context is deliberate - we have to avoid
         # any situations where the code doesn't execute the stack adjustment
         # code. In this case, indenting this write call will leave the stack
         # deeper than it should be, if the branch is taken
-        self._write_instr('    beq $t0, $0, {}', if_context.else_body)
+        self._write_instr('    cmpl $0, %eax')
+        self._write_instr('    jz {}', if_context.else_body)
 
     def handle_else(self):
         """
@@ -1174,7 +1218,7 @@ class MarsBackend(ContextMixin, ThirtyTwoMixin, BaseBackend):
         self._write_comment('====== Else ======')
 
         if_context = self.if_labels[-1]
-        self._write_instr('    j {}', if_context.end)
+        self._write_instr('    jmp {}', if_context.end)
         self._write_instr('{}:', if_context.else_body)
 
     def handle_if_end(self):
@@ -1207,13 +1251,14 @@ class MarsBackend(ContextMixin, ThirtyTwoMixin, BaseBackend):
             if cond_type is not types.Integer:
                 self.error(*cond.loc, 'Conditional must be an integer')
 
-            self._write_instr('    lw $t0, {}($fp)', cond_dest)
+            self._write_instr('    movl {}(%ebp), %eax', cond_dest)
 
         # The position outside the context is deliberate - we have to avoid
         # any situations where the code doesn't execute the stack adjustment
         # code. In this case, indenting this write call will leave the stack
         # deeper than it should be, if the branch is taken
-        self._write_instr('    beq $t0, $0, {}', while_context.exit)
+        self._write_instr('    cmpl $0, %eax')
+        self._write_instr('    jz {}', while_context.exit)
 
     def handle_while_end(self):
         """
@@ -1222,7 +1267,7 @@ class MarsBackend(ContextMixin, ThirtyTwoMixin, BaseBackend):
         self._write_comment('====== While End ======')
 
         while_context = self.while_labels[-1]
-        self._write_instr('    j {}', while_context.cond)
+        self._write_instr('    jmp {}', while_context.cond)
         self._write_instr('{}:', while_context.exit)
 
     def handle_break(self):
@@ -1235,7 +1280,7 @@ class MarsBackend(ContextMixin, ThirtyTwoMixin, BaseBackend):
         except IndexError:
             self.error(self.line, self.col, 'Cannot have break outside of while loop')
 
-        self._write_instr('    j {}', while_context.exit)
+        self._write_instr('    jmp {}', while_context.exit)
 
     def handle_continue(self):
         """
@@ -1247,7 +1292,7 @@ class MarsBackend(ContextMixin, ThirtyTwoMixin, BaseBackend):
         except IndexError:
             self.error(self.line, self.col, 'Cannot have break outside of while loop')
 
-        self._write_instr('    j {}', while_context.cond)
+        self._write_instr('    jmp {}', while_context.cond)
 
     def handle_return(self, expr):
         """
@@ -1269,13 +1314,13 @@ class MarsBackend(ContextMixin, ThirtyTwoMixin, BaseBackend):
             ret_type_size = self._type_size(ret_type)
 
             instr = {
-                1: 'lb',
-                2: 'lh',
-                4: 'lw',
+                1: 'movb',
+                2: 'movw',
+                4: 'movl',
             }[ret_type_size]
-            self._write_instr('    {} $v0, {}($fp)', instr, ret_dest)
+            self._write_instr('    {} {}(%ebp), %eax', instr, ret_dest)
 
-        self._write_instr('    j {}', self.func_exit_label)
+        self._write_instr('    jmp {}', self.func_exit_label)
 
     def handle_raw_expression(self, expr):
         """
@@ -1294,4 +1339,4 @@ def get_backend(output, filename, is_library):
     """
     Returns the backend represented by this module.
     """
-    return MarsBackend(output, filename, is_library)
+    return LinuxX86Backend(output, filename, is_library)

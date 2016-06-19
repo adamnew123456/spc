@@ -207,7 +207,7 @@ class Driver:
                     'Each declaration must be of the form (IDENTIFIER KIND)')
 
             if len(element) != 2:
-                raise CompilerError.from_token(element,
+                raise CompilerError.from_token(element[0],
                     'Each declaration must be of the form (IDENTIFIER KIND)')
 
 
@@ -267,7 +267,7 @@ class Driver:
             (ref EXPRESSION)
             (deref EXPRESSION)
             (ptr-to-int EXPRESSION)
-            (int-to-ptr TYPE EXPRESSION)
+            (int-to-ptr EXPRESSION TYPE)
             (cast TYPE EXPRESSION)
 
             (byte-to-int EXPRESSION)
