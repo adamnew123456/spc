@@ -1037,7 +1037,7 @@ class LinuxX86Backend(ContextMixin, ThirtyTwoMixin, BaseBackend):
             self._write_instr('    jnz {}', skip_label)
             self._write_instr('    movl $1, %eax')
             self._write_instr('{}:', skip_label)
-            self._write_instr('    movl %eax, {}(%ebp)', expr_dest)
+            self._write_instr('    movl %eax, {}(%ebp)', dest_offset)
 
             return dest_offset, types.Integer
         elif isinstance(expr, expressions.SizeOf):
