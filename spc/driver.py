@@ -207,7 +207,7 @@ class Driver:
                     'Each declaration must be of the form (IDENTIFIER KIND)')
 
             if len(element) != 2:
-                raise CompilerError.from_token(element,
+                raise CompilerError.from_token(element[0],
                     'Each declaration must be of the form (IDENTIFIER KIND)')
 
 
