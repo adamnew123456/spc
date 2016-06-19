@@ -310,9 +310,8 @@ class MarsBackend(ContextMixin, ThirtyTwoMixin, BaseBackend):
         self.in_function = True
         self.func_exit_label = next(LABEL_MAKER)
 
-        self.undefined_funcs.remove(name)
-
         try:
+            self.undefined_funcs.remove(name)
             func_defn = self.current_context.value_defns[name]
         except KeyError as exn:
             self.error(self.line, self.col, 'Undefined function "{}"', name)
