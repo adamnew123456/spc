@@ -317,6 +317,7 @@ class Common32Backend(ContextMixin, ThirtyTwoMixin, BaseBackend):
         Writes out the end label and the code for doing a function return.
         """
         self.templates.emit_label(self.func_exit_label)
+        self.current_context.func_stack.cleanup_locals()
         self.templates.emit_func_footer()
         self._pop_context()
 
@@ -1047,7 +1048,7 @@ class Common32Backend(ContextMixin, ThirtyTwoMixin, BaseBackend):
                 copy_dest = temp_context.add_temp(type_size, type_align)
 
                 self._memcpy_opt(copy_reg, param_type,
-                    tmp_reg, param_dest,
+                    self.templates.frame_reg, param_dest,
                     self.templates.frame_reg, copy_dest)
 
             self._write_comment('-- Tail Padding --')
