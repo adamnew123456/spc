@@ -81,14 +81,14 @@ class MarsTemplates:
             self._write_instr('    li $t0, {}', byte)
             self._write_instr('    sb $t0, {}($fp)', base_addr + idx)
 
-    def emit_static_string(self, name, unescaped_bytes):
+    def emit_static_string(self, unescaped_bytes):
         self._write_instr('    .asciiz "{}"', unescaped_bytes)
 
-    def emit_static_space(self, name, size):
+    def emit_static_space(self, size):
         self._write_instr('    .space {}', size)
 
     def emit_text_segment(self):
-        self._write_instr('    .text')
+        self._write_instr('.text')
 
     def emit_prog_header(self):
         self._write_instr('    jal {}', mangle_label('main'))

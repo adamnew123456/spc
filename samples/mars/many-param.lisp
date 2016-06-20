@@ -1,4 +1,4 @@
-(require "arch/mars.asm")
+(require "arch/mars.lisp")
     
 (declare
  (newline (array-of byte 3))

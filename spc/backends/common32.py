@@ -132,9 +132,7 @@ class Common32Backend(ContextMixin, ThirtyTwoMixin, BaseBackend):
                 self.templates.emit_stack_string(base_addr, escaped)
             else:
                 self.templates.emit_label(mangle_label(name))
-                self.templates.emit_static_string(
-                        name,
-                        decl_type.bytes.decode('ascii'))
+                self.templates.emit_static_string(decl_type.bytes.decode('ascii'))
         elif was_type_name or isinstance(decl_type, types.RAW_TYPES):
             self._write_comment('  Declaring variable {} :: {}', name, decl_type)
 
@@ -152,7 +150,7 @@ class Common32Backend(ContextMixin, ThirtyTwoMixin, BaseBackend):
                 self._write_comment('  As a global')
 
                 size = self._type_size(decl_type)
-                self.templates.emit_label(name)
+                self.templates.emit_label(mangle_label(name))
                 self.templates.emit_static_space(size)
             if was_array:
                 self.current_context.array_bound[name] = size
@@ -771,7 +769,7 @@ class Common32Backend(ContextMixin, ThirtyTwoMixin, BaseBackend):
             if expr.kind == expressions.CMP_LESS:
                 self.templates.emit_less(tmp_reg, lhs_dest, rhs_dest)
             elif expr.kind == expressions.CMP_GREATER:
-                self.templates.emit_geater(tmp_reg, lhs_dest, rhs_dest)
+                self.templates.emit_greater(tmp_reg, lhs_dest, rhs_dest)
             elif expr.kind == expressions.CMP_LESSEQ:
                 self.templates.emit_lesseq(tmp_reg, lhs_dest, rhs_dest)
             elif expr.kind == expressions.CMP_GREATEQ:
