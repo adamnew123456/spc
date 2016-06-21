@@ -294,7 +294,7 @@ class LinuxX86Templates:
         self._write_instr('    jnz {}', label)
 
     def emit_not(self, reg):
-        skip_label = next(self.backend.skip_label)
+        skip_label = next(self.backend.label_maker)
 
         self._write_instr('    cmpl $0, {}', reg)
 
