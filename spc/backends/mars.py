@@ -155,13 +155,12 @@ class MarsTemplates:
     def emit_save_stack_byte(self, reg, offset):
         self._write_instr('    sb {}, {}($fp)', reg, offset)
 
-    def emit_int_to_byte(self, reg, expr_offset):
-        self._write_instr('    lw {}, {}($fp)', reg, expr_offset)
+    def emit_int_to_byte(self, reg):
         self._write_instr('    sll {0}, {0}, 24', reg)
         self._write_instr('    sra {0}, {0}, 24', reg)
 
-    def emit_byte_to_int(self, reg, expr_offset):
-        self._write_instr('    lb {}, {}($fp)', reg, expr_offset)
+    def emit_byte_to_int(self, reg):
+        pass
 
     def emit_array_offset(self, reg, array_offset, index_offset, elem_size):
         self._write_instr('    lw $t0, {}($fp)', array_offset)
@@ -174,76 +173,59 @@ class MarsTemplates:
     def emit_struct_offset(self, reg, total_offset):
         self._write_instr('    addi {0}, {0}, {1}', reg, total_offset)
 
-    def _load_binop_args(self, lhs_offset, rhs_offset):
-        self.emit_load_stack_word('$t0', lhs_offset)
-        self.emit_load_stack_word('$t1', rhs_offset)
+    def emit_add(self, dest_reg, rhs_reg):
+        self._write_instr('    add {0}, {0}, {1}', dest_reg, rhs_reg)
 
-    def emit_add(self, reg, lhs_offset, rhs_offset):
-        self._load_binop_args(lhs_offset, rhs_offset)
-        self._write_instr('    add {}, $t0, $t1', reg)
+    def emit_sub(self, dest_reg, rhs_reg):
+        self._write_instr('    sub {0}, {0}, {1}', dest_reg, rhs_reg)
 
-    def emit_sub(self, reg, lhs_offset, rhs_offset):
-        self._load_binop_args(lhs_offset, rhs_offset)
-        self._write_instr('    sub {}, $t0, $t1', reg)
+    def emit_mul(self, dest_reg, rhs_reg):
+        self._write_instr('    mult {}, {}', dest_reg, rhs_reg)
+        self._write_instr('    mflo {}', dest_reg)
 
-    def emit_mul(self, reg, lhs_offset, rhs_offset):
-        self._load_binop_args(lhs_offset, rhs_offset)
-        self._write_instr('    mult $t0, $t1')
-        self._write_instr('    mflo {}', reg)
+    def emit_div(self, dest_reg, rhs_reg):
+        self._write_instr('    div {}, {}', dest_reg, rhs_reg)
+        self._write_instr('    mflo {}', dest_reg)
 
-    def emit_div(self, reg, lhs_offset, rhs_offset):
-        self._load_binop_args(lhs_offset, rhs_offset)
-        self._write_instr('    div $t0, $t1')
-        self._write_instr('    mflo {}', reg)
+    def emit_mod(self, dest_reg, rhs_reg):
+        self._write_instr('    div {}, {}', dest_reg, rhs_reg)
+        self._write_instr('    mfhi {}', dest_reg)
 
-    def emit_mod(self, reg, lhs_offset, rhs_offset):
-        self._load_binop_args(lhs_offset, rhs_offset)
-        self._write_instr('    div $t0, $t1')
-        self._write_instr('    mfhi {}', reg)
+    def emit_less(self, dest_reg, rhs_reg):
+        self._write_instr('    slt {0}, {0}, {1}', dest_reg, rhs_reg)
 
-    def emit_less(self, reg, lhs_offset, rhs_offset):
-        self._load_binop_args(lhs_offset, rhs_offset)
-        self._write_instr('    slt {}, $t0, $t1', reg)
+    def emit_greater(self, dest_reg, rhs_reg):
+        self._write_instr('    sgt {0}, {0}, {1}', dest_reg, rhs_reg)
 
-    def emit_greater(self, reg, lhs_offset, rhs_offset):
-        self._load_binop_args(lhs_offset, rhs_offset)
-        self._write_instr('    sgt {}, $t0, $t1', reg)
+    def emit_lesseq(self, dest_reg, rhs_reg):
+        self._write_instr('    sle {0}, {0}, {1}', dest_reg, rhs_reg)
 
-    def emit_lesseq(self, reg, lhs_offset, rhs_offset):
-        self._load_binop_args(lhs_offset, rhs_offset)
-        self._write_instr('    sle {}, $t0, $t1', reg)
+    def emit_greateq(self, dest_reg, rhs_reg):
+        self._write_instr('    sge {0}, {0}, {1}', dest_reg, rhs_reg)
 
-    def emit_greateq(self, reg, lhs_offset, rhs_offset):
-        self._load_binop_args(lhs_offset, rhs_offset)
-        self._write_instr('    sge {}, $t0, $t1', reg)
+    def emit_eq(self, dest_reg, rhs_reg):
+        self._write_instr('    seq {0}, {0}, {1}', dest_reg, rhs_reg)
 
-    def emit_eq(self, reg, lhs_offset, rhs_offset):
-        self._load_binop_args(lhs_offset, rhs_offset)
-        self._write_instr('    seq {}, $t0, $t1', reg)
+    def emit_noteq(self, dest_reg, rhs_reg):
+        self._write_instr('    sne {0}, {0}, {1}', dest_reg, rhs_reg)
 
-    def emit_noteq(self, reg, lhs_offset, rhs_offset):
-        self._load_binop_args(lhs_offset, rhs_offset)
-        self._write_instr('    sne {}, $t0, $t1', reg)
+    def emit_bit_and(self, dest_reg, rhs_reg):
+        self._write_instr('    and {0}, {0}, {1}', dest_reg, rhs_reg)
 
-    def emit_bit_and(self, reg, lhs_offset, rhs_offset):
-        self._load_binop_args(lhs_offset, rhs_offset)
-        self._write_instr('    and {}, $t0, $t1', reg)
+    def emit_bit_or(self, dest_reg, rhs_reg):
+        self._write_instr('    or {0}, {0}, {1}', dest_reg, rhs_reg)
 
-    def emit_bit_or(self, reg, lhs_offset, rhs_offset):
-        self._load_binop_args(lhs_offset, rhs_offset)
-        self._write_instr('    or {}, $t0, $t1', reg)
+    def emit_shiftleft(self, dest_reg, rhs_reg):
+        self._write_instr('    sllv {0}, {0}, {1}', dest_reg, rhs_reg)
 
-    def emit_shiftleft(self, reg, lhs_offset, rhs_offset):
-        self._load_binop_args(lhs_offset, rhs_offset)
-        self._write_instr('    sllv {}, $t0, $t1', reg)
+    def emit_shiftright_arith(self, dest_reg, rhs_reg):
+        self._write_instr('    srav {0}, {0}, {1}', dest_reg, rhs_reg)
 
-    def emit_shiftright_arith(self, reg, lhs_offset, rhs_offset):
-        self._load_binop_args(lhs_offset, rhs_offset)
-        self._write_instr('    sllv {}, $t0, $t1', reg)
+    def emit_shiftright_log(self, dest_reg, rhs_reg):
+        self._write_instr('    slav {0}, {0}, {1}', dest_reg, rhs_reg)
 
-    def emit_bit_not(self, reg, offset):
-        self._write_instr('    lw {}, {}($fp)', reg, offset)
-        self._write_instr('    nor {0}, {0}, $0', reg)
+    def emit_bit_not(self, reg):
+        self._write_instr('    not {}', reg)
 
     def emit_branch_if_zero(self, reg, label):
         self._write_instr('    beq {}, $0, {}', reg, label)

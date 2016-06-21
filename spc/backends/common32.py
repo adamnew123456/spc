@@ -585,7 +585,8 @@ class Common32Backend(ContextMixin, ThirtyTwoMixin, BaseBackend):
             dest_offset = temp_context.add_temp(byte_size, byte_align)
             tmp_reg = self.templates.tmp_regs[0]
 
-            self.templates.emit_int_to_byte(tmp_reg, expr_dest)
+            self.templates.emit_load_stack_word(tmp_reg, expr_dest)
+            self.templates.emit_int_to_byte(tmp_reg)
             self.templates.emit_save_stack_byte(tmp_reg, dest_offset)
 
             return dest_offset, types.Byte
@@ -604,7 +605,8 @@ class Common32Backend(ContextMixin, ThirtyTwoMixin, BaseBackend):
             dest_offset = temp_context.add_temp(int_size, int_align)
             tmp_reg = self.templates.tmp_regs[0]
 
-            self.templates.emit_byte_to_int(tmp_reg, expr_dest)
+            self.templates.emit_load_stack_byte(tmp_reg, expr_dest)
+            self.templates.emit_byte_to_int(tmp_reg)
             self.templates.emit_save_stack_word(tmp_reg, dest_offset)
 
             return dest_offset, types.Integer
@@ -730,20 +732,25 @@ class Common32Backend(ContextMixin, ThirtyTwoMixin, BaseBackend):
             int_size = self._type_size(types.Integer)
             int_align = self._type_alignment(types.Integer)
             dest_offset = temp_context.add_temp(int_size, int_align)
-            tmp_reg = self.templates.tmp_regs[0]
+
+            lhs_reg = self.templates.tmp_regs[0]
+            tmp_reg = self.templates.tmp_regs[1]
+
+            self.templates.emit_load_stack_word(lhs_reg, lhs_dest)
+            self.templates.emit_load_stack_word(tmp_reg, rhs_dest)
 
             if expr.kind == expressions.ARITH_PLUS:
-                self.templates.emit_add(tmp_reg, lhs_dest, rhs_dest)
+                self.templates.emit_add(lhs_reg, tmp_reg)
             elif expr.kind == expressions.ARITH_MINUS:
-                self.templates.emit_sub(tmp_reg, lhs_dest, rhs_dest)
+                self.templates.emit_sub(lhs_reg, tmp_reg)
             elif expr.kind == expressions.ARITH_TIMES:
-                self.templates.emit_mul(tmp_reg, lhs_dest, rhs_dest)
+                self.templates.emit_mul(lhs_reg, tmp_reg)
             elif expr.kind == expressions.ARITH_DIVIDE:
-                self.templates.emit_div(tmp_reg, lhs_dest, rhs_dest)
+                self.templates.emit_div(lhs_reg, tmp_reg)
             elif expr.kind == expressions.ARITH_MOD:
-                self.templates.emit_mod(tmp_reg, lhs_dest, rhs_dest)
+                self.templates.emit_mod(lhs_reg, tmp_reg)
 
-            self.templates.emit_save_stack_word(tmp_reg, dest_offset)
+            self.templates.emit_save_stack_word(lhs_reg, dest_offset)
 
             return dest_offset, types.Integer
         elif isinstance(expr, expressions.Compare):
@@ -764,22 +771,27 @@ class Common32Backend(ContextMixin, ThirtyTwoMixin, BaseBackend):
             int_size = self._type_size(types.Integer)
             int_align = self._type_alignment(types.Integer)
             dest_offset = temp_context.add_temp(int_size, int_align)
-            tmp_reg = self.templates.tmp_regs[0]
+
+            lhs_reg = self.templates.tmp_regs[0]
+            tmp_reg = self.templates.tmp_regs[1]
+
+            self.templates.emit_load_stack_word(lhs_reg, lhs_dest)
+            self.templates.emit_load_stack_word(tmp_reg, rhs_dest)
 
             if expr.kind == expressions.CMP_LESS:
-                self.templates.emit_less(tmp_reg, lhs_dest, rhs_dest)
+                self.templates.emit_less(lhs_reg, tmp_reg)
             elif expr.kind == expressions.CMP_GREATER:
-                self.templates.emit_greater(tmp_reg, lhs_dest, rhs_dest)
+                self.templates.emit_greater(lhs_reg, tmp_reg)
             elif expr.kind == expressions.CMP_LESSEQ:
-                self.templates.emit_lesseq(tmp_reg, lhs_dest, rhs_dest)
+                self.templates.emit_lesseq(lhs_reg, tmp_reg)
             elif expr.kind == expressions.CMP_GREATEQ:
-                self.templates.emit_greateq(tmp_reg, lhs_dest, rhs_dest)
+                self.templates.emit_greateq(lhs_reg, tmp_reg)
             elif expr.kind == expressions.CMP_EQ:
-                self.templates.emit_eq(tmp_reg, lhs_dest, rhs_dest)
+                self.templates.emit_eq(lhs_reg, tmp_reg)
             elif expr.kind == expressions.CMP_NOTEQ:
-                self.templates.emit_noteq(tmp_reg, lhs_dest, rhs_dest)
+                self.templates.emit_noteq(lhs_reg, tmp_reg)
 
-            self.templates.emit_save_stack_word(tmp_reg, dest_offset)
+            self.templates.emit_save_stack_word(lhs_reg, dest_offset)
 
             return dest_offset, types.Integer
         elif isinstance(expr, (expressions.BitAnd, expressions.BitOr, expressions.BitXor,
@@ -789,6 +801,9 @@ class Common32Backend(ContextMixin, ThirtyTwoMixin, BaseBackend):
 
             lhs_dest, lhs_type = self._compile_expression(expr.lhs, temp_context)
             rhs_dest, rhs_type = self._compile_expression(expr.rhs, temp_context)
+
+            self.templates.emit_load_stack_word(lhs_reg, lhs_dest)
+            self.templates.emit_load_stack_word(tmp_reg, rhs_dest)
             
             if lhs_type is not types.Integer:
                 self.error(*expr.loc, 
@@ -801,23 +816,25 @@ class Common32Backend(ContextMixin, ThirtyTwoMixin, BaseBackend):
             int_size = self._type_size(types.Integer)
             int_align = self._type_alignment(types.Integer)
             dest_offset = temp_context.add_temp(int_size, int_align)
-            tmp_reg = self.templates.tmp_regs[0]
+
+            lhs_reg = self.templates.tmp_regs[0]
+            tmp_reg = self.templates.tmp_regs[1]
 
             if isinstance(expr, expressions.BitAnd):
-                self.templates.emit_bit_and(tmp_reg, lhs_dest, rhs_dest)
+                self.templates.emit_bit_and(lhs_reg, tmp_reg)
             elif isinstance(expr, expressions.BitOr):
-                self.templates.emit_bit_or(tmp_reg, lhs_dest, rhs_dest)
+                self.templates.emit_bit_or(lhs_reg, tmp_reg)
             elif isinstance(expr, expressions.BitXor):
-                self.templates.emit_xor(tmp_reg, lhs_dest, rhs_dest)
+                self.templates.emit_xor(lhs_reg, tmp_reg)
             elif isinstance(expr, expressions.BitShiftLeft):
-                self.templates.emit_shiftleft(tmp_reg, lhs_dest, rhs_dest)
+                self.templates.emit_shiftleft(lhs_reg, tmp_reg)
             elif isinstance(expr, expressions.BitShiftRight):
                 if expr.sign_extend:
-                    self.templates.emit_shiftright_arith(tmp_reg, lhs_dest, rhs_dest)
+                    self.templates.emit_shiftright_arith(lhs_reg, tmp_reg)
                 else:
-                    self.templates.emit_shiftright_log(tmp_reg, lhs_dest, rhs_dest)
+                    self.templates.emit_shiftright_log(lhs_reg, tmp_reg)
 
-            self.templates.emit_save_stack_word(tmp_reg, dest_offset)
+            self.templates.emit_save_stack_word(lhs_reg, dest_offset)
 
             return dest_offset, types.Integer
         elif isinstance(expr, expressions.BitNot):
@@ -833,9 +850,11 @@ class Common32Backend(ContextMixin, ThirtyTwoMixin, BaseBackend):
             int_size = self._type_size(types.Integer)
             int_align = self._type_alignment(types.Integer)
             dest_offset = temp_context.add_temp(int_size, int_align)
+
             tmp_reg = self.templates.tmp_regs[0]
 
-            self.templates.emit_bit_not(tmp_reg, expr_dest)
+            self.templates.emit_load_stack_word(tmp_reg, expr_dest)
+            self.templates.emit_bit_not(tmp_reg)
             self.templates.emit_save_stack_word(tmp_reg, dest_offset)
 
             return dest_offset, types.Integer
@@ -946,7 +965,8 @@ class Common32Backend(ContextMixin, ThirtyTwoMixin, BaseBackend):
             dest_offset = temp_context.add_temp(int_size, int_align)
             tmp_reg= self.templates.tmp_regs[0]
 
-            self.templates.emit_not(tmp_reg, expr_dest)
+            self.templates.emit_load_stack_word(tmp_reg, expr_dest)
+            self.templates.emit_not(tmp_reg)
             self.templates.emit_save_stack_word(tmp_reg, dest_offset)
 
             return dest_offset, types.Integer
