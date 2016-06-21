@@ -4,12 +4,16 @@ A common backend for 32-bit processors.
 import logging
 
 from ..backend import BaseBackend
-from ..backend_utils import *
+from ..backend_utils import (
+    ContextMixin, IfLabels, ThirtyTwoMixin, WhileLabels,
+)
 from .. import expressions
 from ..require_processor import RequireProcessor
 from ..symbols import SymbolTable
 from .. import types
-from ..util import *
+from ..util import (
+    make_label_maker, mangle_label, unescape_bytes
+)
 
 LOGGER = logging.getLogger('spc.common32')
 

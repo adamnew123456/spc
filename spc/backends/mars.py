@@ -4,11 +4,10 @@ driver and converting them into code.
 """
 import logging
 
+from ..backend_utils import FunctionStack
 from .common32 import Common32Backend
-from ..backend_utils import *
-from ..symbols import SymbolTable
 from .. import types
-from ..util import *
+from ..util import mangle_label
 
 LOGGER = logging.getLogger('spc.mars')
 
