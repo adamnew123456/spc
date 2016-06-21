@@ -34,6 +34,8 @@ class Common32Backend(ContextMixin, ThirtyTwoMixin, BaseBackend):
         self.templates = templates
         self.exported = set()
         self.undefined_funcs = set()
+        self.comment_fmt = templates.comment_fmt
+
 
         # It's important for the templates to get to the backend, so they can
         # actually spit out code

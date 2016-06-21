@@ -152,7 +152,7 @@ class BaseBackend:
     A backend which includes parts common to most backends.
     """
     # Override this with the appropriate for of comment for the backend
-    COMMENT_FMT = '# {}'
+    comment_fmt = '# {}'
 
     def __init__(self, output, filename, is_library, 
                 builtin_functions, builtin_types):
@@ -304,7 +304,7 @@ class BaseBackend:
         Writes a code comment to the output stream.
         """
         formatted_comment = fmt.format(*args, **kwargs)
-        print(self.COMMENT_FMT.format(formatted_comment),
+        print(self.comment_fmt.format(formatted_comment),
                 file=self.output_stream)
 
     def update_position(self, line, col):
