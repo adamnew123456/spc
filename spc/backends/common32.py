@@ -5,7 +5,6 @@ import logging
 
 from ..backend import BaseBackend
 from ..backend_utils import *
-from ..errors import CompilerError
 from .. import expressions
 from ..require_processor import RequireProcessor
 from ..symbols import SymbolTable

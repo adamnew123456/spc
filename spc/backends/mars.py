@@ -5,11 +5,7 @@ driver and converting them into code.
 import logging
 
 from .common32 import Common32Backend
-from ..backend import BaseBackend
 from ..backend_utils import *
-from ..errors import CompilerError
-from .. import expressions
-from ..require_processor import RequireProcessor
 from ..symbols import SymbolTable
 from .. import types
 from ..util import *

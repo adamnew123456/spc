@@ -3,14 +3,9 @@ Linux compiler backend - responsible for taking program events emitted by the
 driver and converting them into code.
 """
 import logging
-import string
 
-from ..backend import BaseBackend
 from ..backend_utils import *
 from .common32 import Common32Backend
-from ..errors import CompilerError
-from .. import expressions
-from ..require_processor import RequireProcessor
 from ..symbols import SymbolTable
 from .. import types
 from ..util import *

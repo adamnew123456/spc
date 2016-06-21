@@ -2,9 +2,7 @@
 This is the base backend, which contains parts which should be common to most
 backends.
 """
-from .driver import Driver
 from .errors import CompilerError
-from .lexer import Lexer
 from .symbols import SymbolTable
 from . import types
 
