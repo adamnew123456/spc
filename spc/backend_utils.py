@@ -141,16 +141,23 @@ class FunctionStack:
 
         return TemporaryContext(self.local_offset)
 
+    def expand_locals(self):
+        """
+        Makes enough space for the local variables on the stack.
+        """
+        self._expand_stack(self.locals_size())
+
+    def cleanup_locals(self):
+        """
+        Cleans up the space used by the local variables on the stack.
+        """
+        self._shrink_stack(self.locals_size())
+
     def locals_size(self):
         """
         Gets the size used by all the locals.
         """
         return abs(self.local_offset) - abs(self._starting_locals_offset())
-
-    def cleanup_locals(self):
-        """
-        Cleans up the space used by local variables.
-        """
 
     def __getitem__(self, name):
         """

@@ -1,4 +1,4 @@
-(require "arch/pair-ints.lisp")
+(require "arch/mars.lisp")
     
 (declare
  (newline (array-of byte 2))
