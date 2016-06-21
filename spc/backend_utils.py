@@ -276,3 +276,21 @@ class ThirtyTwoMixin:
             return last_field_offset + self._type_size(last_field_type, depth + 1)
         else:
             raise TypeError('Not a compiler type: {}'.format(type_obj))
+
+class comment_after:
+    """
+    Wraps a method - after the method executes, something is written to
+    the log.
+    """
+    def __init__(self, fmt, *args, **kwargs):
+        self.fmt = fmt
+        self.args = args
+        self.kwargs = kwargs
+
+    def __call__(self, func):
+        def wrapper(parent, *args, **kwargs):
+            x = func(parent, *args, **kwargs)
+            parent._write_comment(self.fmt, *self.args, **self.kwargs)
+            return x
+
+        return wrapper

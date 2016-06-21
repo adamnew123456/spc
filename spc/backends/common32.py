@@ -5,7 +5,7 @@ import logging
 
 from ..backend import BaseBackend
 from ..backend_utils import (
-    ContextMixin, IfLabels, ThirtyTwoMixin, WhileLabels,
+    comment_after, ContextMixin, IfLabels, ThirtyTwoMixin, WhileLabels,
 )
 from .. import expressions
 from ..require_processor import RequireProcessor
@@ -21,6 +21,7 @@ BUILTIN_TYPES = SymbolTable(is_builtin=True)
 BUILTIN_TYPES['string'] = types.PointerTo(types.Byte)
 
 BUILTIN_FUNCTIONS = SymbolTable(is_builtin=True)
+
 
 class Common32Backend(ContextMixin, ThirtyTwoMixin, BaseBackend):
     """
@@ -45,20 +46,6 @@ class Common32Backend(ContextMixin, ThirtyTwoMixin, BaseBackend):
 
     def _make_func_stack(self):
         return self.templates.make_func_stack()
-
-    class comment_after:
-        def __init__(self, fmt, *args, **kwargs):
-            self.fmt = fmt
-            self.args = args
-            self.kwargs = kwargs
-
-        def __call__(self, func):
-            def wrapper(parent, *args, **kwargs):
-                x = func(parent, *args, **kwargs)
-                parent._write_comment(self.fmt, *self.args, **self.kwargs)
-                return x
-
-            return wrapper
 
     def handle_begin_program(self):
         """
