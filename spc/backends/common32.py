@@ -14,8 +14,6 @@ from ..util import *
 
 LOGGER = logging.getLogger('spc.common32')
 
-LABEL_MAKER = make_label_maker()
-
 BUILTIN_TYPES = SymbolTable(is_builtin=True)
 BUILTIN_TYPES['string'] = types.PointerTo(types.Byte)
 
@@ -35,6 +33,7 @@ class Common32Backend(ContextMixin, ThirtyTwoMixin, BaseBackend):
         self.exported = set()
         self.undefined_funcs = set()
         self.comment_fmt = templates.comment_fmt
+        self.label_maker = make_label_maker()
 
 
         # It's important for the templates to get to the backend, so they can
@@ -263,7 +262,7 @@ class Common32Backend(ContextMixin, ThirtyTwoMixin, BaseBackend):
         Handles the beginning of a function.
         """
         self.in_function = True
-        self.func_exit_label = next(LABEL_MAKER)
+        self.func_exit_label = next(self.label_maker)
 
         try:
             self.undefined_funcs.remove(name)
@@ -878,7 +877,7 @@ class Common32Backend(ContextMixin, ThirtyTwoMixin, BaseBackend):
             # if (a_result)
             #     b_result := B
             #     X := b_result
-            end_label = next(LABEL_MAKER)
+            end_label = next(self.label_maker)
 
             lhs_dest, lhs_type = self._compile_expression(expr.lhs, temp_context)
             
@@ -925,7 +924,7 @@ class Common32Backend(ContextMixin, ThirtyTwoMixin, BaseBackend):
             # if (!a_result)
             #     b_result := B
             #     X := b_result
-            end_label = next(LABEL_MAKER)
+            end_label = next(self.label_maker)
 
             lhs_dest, lhs_type = self._compile_expression(expr.lhs, temp_context)
             
@@ -1132,7 +1131,10 @@ class Common32Backend(ContextMixin, ThirtyTwoMixin, BaseBackend):
         self._write_comment('====== If ======')
         self._write_comment('  Condition: {}', cond)
 
-        if_context = IfLabels(next(LABEL_MAKER), next(LABEL_MAKER))
+        if_context = IfLabels(
+                next(self.label_maker), 
+                next(self.label_maker))
+
         self.if_labels.append(if_context)
 
         tmp_reg = self.templates.tmp_regs[0]
@@ -1180,7 +1182,9 @@ class Common32Backend(ContextMixin, ThirtyTwoMixin, BaseBackend):
         self._write_comment('====== While ======')
         self._write_comment('  Condition: {}', cond)
 
-        while_context = WhileLabels(next(LABEL_MAKER), next(LABEL_MAKER))
+        while_context = WhileLabels(
+                next(self.label_maker), 
+                next(self.label_maker))
         self.while_labels.append(while_context)
 
         tmp_reg = self.templates.tmp_regs[0]
