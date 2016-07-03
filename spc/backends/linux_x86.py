@@ -158,6 +158,12 @@ class LinuxX86Templates:
         self._write_instr('    movl {}(%ebp), {}', array_offset, reg)
         self._write_instr('    addl %ecx, {}', reg)
 
+    def emit_left_array_offset(self, reg, array_offset, index_offset, elem_size):
+        self._write_instr('    movl {}(%ebp), %eax', index_offset, reg)
+        self._write_instr('    imull ${}, %eax, %ecx', elem_size)
+        self._write_instr('    movl {}(%ebp), {}', array_offset, reg)
+        self._write_instr('    subl %ecx, {}', reg)
+
     def emit_struct_offset(self, reg, total_offset):
         self._write_instr('    add ${}, {}', total_offset, reg)
 

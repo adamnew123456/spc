@@ -147,7 +147,7 @@
     ;;   (field E F+) gets the value of a structure E by traversing the fields F.
     ;;     The C equivalent is (e).f1.f2.f3.etc.fn
     ;;
-    ;; Arithmetic (same as in C, however, there is no pointer arithmetic)
+    ;; Arithmetic (same as in C, pointer arithmetic included for + and -)
     ;;  + - * / % & | ~ << >> >>>
     ;;
     ;; Logical expressions:

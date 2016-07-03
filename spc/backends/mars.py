@@ -166,6 +166,14 @@ class MarsTemplates:
         self._write_instr('    mult $t1, $t2')
         self._write_instr('    mflo $t1')
         self._write_instr('    add {}, $t0, $t1', reg)
+ 
+    def emit_left_array_offset(self, reg, array_offset, index_offset, elem_size):
+        self._write_instr('    lw $t0, {}($fp)', array_offset)
+        self._write_instr('    lw $t1, {}($fp)', index_offset)
+        self._write_instr('    li $t2, {}', elem_size)
+        self._write_instr('    mult $t1, $t2')
+        self._write_instr('    mflo $t1')
+        self._write_instr('    sub {}, $t0, $t1', reg)
 
     def emit_struct_offset(self, reg, total_offset):
         self._write_instr('    addi {0}, {0}, {1}', reg, total_offset)

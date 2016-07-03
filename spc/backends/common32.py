@@ -22,7 +22,6 @@ BUILTIN_TYPES['string'] = types.PointerTo(types.Byte)
 
 BUILTIN_FUNCTIONS = SymbolTable(is_builtin=True)
 
-
 class Common32Backend(ContextMixin, ThirtyTwoMixin, BaseBackend):
     """
     Emits MIPS assembly code compatible with the MARS simulator.
@@ -38,7 +37,6 @@ class Common32Backend(ContextMixin, ThirtyTwoMixin, BaseBackend):
         self.undefined_funcs = set()
         self.comment_fmt = templates.comment_fmt
         self.label_maker = make_label_maker()
-
 
         # It's important for the templates to get to the backend, so they can
         # actually spit out code
@@ -706,13 +704,18 @@ class Common32Backend(ContextMixin, ThirtyTwoMixin, BaseBackend):
 
             lhs_dest, lhs_type = self._compile_expression(expr.lhs, temp_context)
             rhs_dest, rhs_type = self._compile_expression(expr.rhs, temp_context)
-            
-            if lhs_type is not types.Integer:
-                self.error(*expr.loc, 
-                    'Arithmetic expression requires integer on LHS')
+            is_ptr_op = isinstance(lhs_type, types.PointerTo)
+                
+            if is_ptr_op:
+                if expr.kind not in (expressions.ARITH_PLUS, expressions.ARITH_MINUS):
+                    self.error(*expr.loc,
+                        'Pointer arithmetic must be + or minus')
+            elif lhs_type is not types.Integer:
+                self.error(*expr.loc,
+                    'Arithmetic expression requires integer or pointer on LHS')
 
             if rhs_type is not types.Integer:
-                self.error(*expr.loc, 
+                self.error(*expr.loc,
                     'Arithmetic expression requires integer on RHS')
     
             int_size = self._type_size(types.Integer)
@@ -722,13 +725,23 @@ class Common32Backend(ContextMixin, ThirtyTwoMixin, BaseBackend):
             lhs_reg = self.templates.tmp_regs[0]
             tmp_reg = self.templates.tmp_regs[1]
 
-            self.templates.emit_load_stack_word(lhs_reg, lhs_dest)
+            if not is_ptr_op:
+                self.templates.emit_load_stack_word(lhs_reg, lhs_dest)
+
             self.templates.emit_load_stack_word(tmp_reg, rhs_dest)
 
             if expr.kind == expressions.ARITH_PLUS:
-                self.templates.emit_add(lhs_reg, tmp_reg)
+                if is_ptr_op:
+                    _, element_size = types.elem_size_with_padding(self, lhs_type)
+                    self.templates.emit_array_offset(lhs_reg, lhs_dest, rhs_dest, element_size)
+                else:
+                    self.templates.emit_add(lhs_reg, tmp_reg)
             elif expr.kind == expressions.ARITH_MINUS:
-                self.templates.emit_sub(lhs_reg, tmp_reg)
+                if is_ptr_op:
+                    _, element_size = types.elem_size_with_padding(self, lhs_type)
+                    self.templates.emit_left_array_offset(lhs_reg, lhs_dest, rhs_dest, element_size)
+                else:
+                    self.templates.emit_sub(lhs_reg, tmp_reg)
             elif expr.kind == expressions.ARITH_TIMES:
                 self.templates.emit_mul(lhs_reg, tmp_reg)
             elif expr.kind == expressions.ARITH_DIVIDE:
@@ -738,7 +751,10 @@ class Common32Backend(ContextMixin, ThirtyTwoMixin, BaseBackend):
 
             self.templates.emit_save_stack_word(lhs_reg, dest_offset)
 
-            return dest_offset, types.Integer
+            if is_ptr_op:
+                return dest_offset, lhs_type
+            else:
+                return dest_offset, types.Integer
         elif isinstance(expr, expressions.Compare):
             if by_ref:
                 self.error(*expr.loc, 'Cannot use & result in a ref context')
