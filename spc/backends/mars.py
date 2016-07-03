@@ -230,8 +230,7 @@ class MarsTemplates:
     def emit_branch_if_nonzero(self, reg, label):
         self._write_instr('    bne {}, $0, {}', reg, label)
 
-    def emit_not(self, reg, offset):
-        self._write_instr('    lw {}, {}($fp)', reg, offset)
+    def emit_not(self, reg):
         self._write_instr('    seq {0}, {0}, $0', reg)
 
     def emit_indirect_call(self, reg):
