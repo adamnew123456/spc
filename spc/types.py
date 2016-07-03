@@ -105,3 +105,14 @@ def resolve_name(name, types, MAX_DEPTH=25):
             raise RecursionError
 
     return name
+
+def elem_size_with_padding(backend, array_type):
+    """
+    Returns the size of each element in the array - the first value including
+    padding and the second value not including padding.
+    """
+    element_type = backend._resolve_if_type_name(array_type.type)
+    element_align = backend._type_alignment(element_type)
+    raw_element_size = backend._type_size(element_type)
+    pad_element_size = align_address(raw_element_size, element_align) 
+    return raw_element_size, pad_element_size

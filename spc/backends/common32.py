@@ -628,13 +628,9 @@ class Common32Backend(ContextMixin, ThirtyTwoMixin, BaseBackend):
             if index_type is not types.Integer: 
                 self.error(*expr.loc, '(array x i) requires i to be an integer')
 
-            # We have to account for the fact that the memory used by an element
-            # also includes the alignment padding added
             element_type = self._resolve_if_type_name(array_type.type)
             element_align = self._type_alignment(element_type)
-            raw_element_size = self._type_size(element_type)
-            element_size = types.align_address(raw_element_size, element_align)
-
+            raw_element_size, pad_element_size = types.elem_size_with_padding(self, array_type)
             if by_ref:
                 int_size = self._type_size(types.Integer)
                 int_align = self._type_alignment(types.Integer)
@@ -647,22 +643,21 @@ class Common32Backend(ContextMixin, ThirtyTwoMixin, BaseBackend):
             #
             #  base := load(array_dest)
             #  index := load(index_dest)
-            #  byte_offset := index_dest * element_size
+            #  byte_offset := index_dest * pad_element_size
             #  result := base + byte_offset
             tmp_reg = self.templates.tmp_regs[0]
 
-            self.templates.emit_array_offset(tmp_reg, array_dest, index_dest, element_size)
+            self.templates.emit_array_offset(tmp_reg, array_dest, index_dest, pad_element_size)
 
             if by_ref:
                 self.templates.emit_save_stack_word(tmp_reg, dest_offset)
-                return dest_offset, element_type
             else:
                 copy_reg = self.templates.tmp_regs[1]
                 self._memcpy_opt(copy_reg, element_type,
                     tmp_reg, 0,
                     self.templates.frame_reg, dest_offset)
 
-                return dest_offset, element_type
+            return dest_offset, element_type
         elif isinstance(expr, expressions.Field):
             # Note that intermediate fields can always be loaded by reference,
             # since structs always have memory locations
