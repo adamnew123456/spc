@@ -49,6 +49,8 @@ class LinuxX86Templates:
     frame_reg = '%ebp'
     return_reg = '%eax'
     tmp_regs = ['%eax', '%edx']
+
+    platform_name = 'linux_x86'
     comment_fmt = '/* {} */'
 
     def __init__(self):

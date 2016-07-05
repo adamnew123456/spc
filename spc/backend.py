@@ -173,6 +173,7 @@ class BaseBackend:
     """
     # Override this with the appropriate for of comment for the backend
     comment_fmt = '# {}'
+    platform_name = None
 
     def __init__(self, output, filename, is_library, 
                 builtin_functions, builtin_types):

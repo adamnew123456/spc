@@ -8,6 +8,7 @@ import logging
 from .errors import CompilerError
 from . import expressions
 from . import lexer
+from . import static_expressions
 from . import types
 
 LOGGER = logging.getLogger('spc.driver')
@@ -26,6 +27,8 @@ class Driver:
         self.filename = lex.filename
         self.tokens = lexer.to_list(lex.lex())
         self.backend = backend
+
+        self.static_context = static_expressions.StaticContext(self, self.backend)
 
     def parse_type(self, chunk):
         """
@@ -634,6 +637,47 @@ class Driver:
         self.backend.update_position(line, column)
         self.backend.handle_return(expr)
 
+    def process_static_if(self, if_, toplevel=False):
+        """
+        Process (*if EXPRESSION CODE CODE?)
+
+        Note that toplevel should be True when a *if is invoked at the
+        program's top level, and False when *if is invoked as a statement.
+        """
+        if len(if_) not in (3, 4):
+         raise CompilerError.from_token(if_[0],
+                'Static if must be of the form (*if EXPRESSION CODE CODE?)')
+
+        result = static_expressions.evaluate(self.static_context, if_[1])
+        self.backend._write_comment('===== *if =====')
+        self.backend._write_comment('Condition: {}', if_[1])
+        self.backend._write_comment('Result: {}', result)
+
+        if result:
+            if toplevel:
+                self.process_toplevel(if_[2])
+            else:
+                self.process_statement(if_[2])
+        elif len(if_) == 4:
+            if toplevel:
+                self.process_toplevel(if_[3])
+            else:
+                self.process_statement(if_[3])
+
+    def process_static_error(self, error):
+        "Process (*error STRING)"
+        if len(error) != 2:
+            raise CompilerError.from_token(error[0],
+                'Static error must be of the form (*error STRING)')
+
+        if not lexer.is_string(error[1]):
+            raise CompilerError.from_token(error[0],
+                'Static error must be of the form (*error STRING)')
+
+        raise CompilerError.from_token(error[0],
+                'User-generated compiler error: {}',
+                error[1].content.decode('ascii'))
+            
     def process_statement(self, statement):
         """
         Processes a statement.
@@ -654,6 +698,9 @@ class Driver:
             (continue)
 
             (return EXPRESSION)
+
+            (*if STATIC-EXPRESSION STATEMENT STATEMENT?)
+            (*error STRING)
 
             EXPRESSION
         """
@@ -681,6 +728,8 @@ class Driver:
                     'break': self.process_break,
                     'continue': self.process_continue,
                     'return': self.process_return,
+                    '*if': self.process_static_if,
+                    '*error': self.process_static_error,
                 }.get(statement[0].content)
 
                 if func:
@@ -763,6 +812,56 @@ class Driver:
         asm_text = assembly.content.decode('ascii')
         self.backend.handle_assembly(name.content, asm_text)
 
+    def process_toplevel(self, toplevel):
+        """
+        Processes toplevel forms:
+
+            (declare ...)
+
+            (define NAME (ARGS...)
+             (declare ...)
+             ...)
+
+            (assemble IDENTIFIER STRING)
+
+            (require STRING)
+
+            (export IDENTIFIER*)
+
+            (*if EXPRESSION CODE CODE?)
+
+            (*error STRING)
+        """
+        if isinstance(toplevel, list):
+            if toplevel[0].type != lexer.IDENTIFIER:
+                raise CompilerError.from_token(toplevel[0],
+                    "Unexpected '{}' at the top level", toplevel[0])
+
+            if toplevel[0].content == 'declare':
+                self.process_declaration(toplevel)
+            elif toplevel[0].content == 'define':
+                self.process_function_definition(toplevel)
+            elif toplevel[0].content == 'assemble':
+                self.process_assembly_definition(toplevel)
+            elif toplevel[0].content == 'require':
+                self.process_require(toplevel)
+            elif toplevel[0].content == 'export':
+                self.process_export(toplevel)
+            elif toplevel[0].content == '*if':
+                self.process_static_if(toplevel, toplevel=True)
+            elif toplevel[0].content == '*error':
+                self.process_static_error(toplevel)
+            else:
+                raise CompilerError.from_token(toplevel[0],
+                    "Unexpected '{}' at top level", toplevel[0].content)
+
+        elif toplevel.type == lexer.INTEGER:
+            raise CompilerError.from_token(toplevel,
+                    'Top level form cannot be a bare integer')
+        elif toplevel.type == lexer.IDENTIFIER:
+            raise CompilerError.from_token(toplevel,
+                    'Top level form cannot be a bare identifier')
+
     def compile(self):
         """
         This process the source file, handing off syntax elements off to the
@@ -771,30 +870,6 @@ class Driver:
         self.backend.handle_begin_program()
 
         for chunk in self.tokens:
-            if isinstance(chunk, list):
-                if chunk[0].type != lexer.IDENTIFIER:
-                    raise CompilerError.from_token(chunk[0],
-                        "Expected 'declare' or 'define' at top level")
-
-                if chunk[0].content == 'declare':
-                    self.process_declaration(chunk)
-                elif chunk[0].content == 'define':
-                    self.process_function_definition(chunk)
-                elif chunk[0].content == 'assemble':
-                    self.process_assembly_definition(chunk)
-                elif chunk[0].content == 'require':
-                    self.process_require(chunk)
-                elif chunk[0].content == 'export':
-                    self.process_export(chunk)
-                else:
-                    raise CompilerError.from_token(chunk[0],
-                        "Unexpected '{}' at top level", chunk[0].content)
-
-            elif chunk.type == lexer.INTEGER:
-                raise CompilerError.from_token(chunk,
-                        'Top level form cannot be a bare integer')
-            elif chunk.type == lexer.IDENTIFIER:
-                raise CompilerError.from_token(chunk,
-                        'Top level form cannot be a bare identifier')
-
+            self.process_toplevel(chunk)
+            
         self.backend.handle_end_program()

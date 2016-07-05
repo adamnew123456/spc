@@ -53,6 +53,7 @@ class MarsTemplates:
     # this is acceptable
     tmp_regs = ['$t0', '$t1']
 
+    platform_name = 'mars'
     comment_fmt = '# {}'
 
     def __init__(self):

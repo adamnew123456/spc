@@ -5,12 +5,7 @@
 ;;   byte
 ;;   string (aliased to (pointer-to byte))
 ;;
-;; Note an important omission for C programmers - void*. This complicates
-;; a few things (using pointers as arrays, mostly), without much benefit,
-;; since pointers can always be cast. The idea is to use (pointer-to byte)
-;; as a replacement, like C programs used to use char*.
-;;
-;; Also, there are no floating point operations (yet).
+;; There are no floating point types.
 ;;
 ;; Void is missing since it is not terribly useful, and complicates return
 ;; handling for no real benefit - just return a 'byte'.
@@ -30,15 +25,10 @@
 ;;  (struct (I T)+) where I is a field identifier and T is a type
 ;;  (alias T) where T is the type to alias
 ;;
-;; Builtin functions for the MARS version (on top of system calls):
-;;
-;; (declare
-;;   (@print-int (function byte integer))
-;;   (@print-string (function byte (pointer-to byte)))
-;;   (@read-int (function integer))
-;;   (@read-string (function byte (pointer-to byte) integer))
-;;   (@sbrk (function (pointer-to byte) integer))
-;;   (@exit (function byte)))
+;; Note an important omission for C programmers - void*. This complicates
+;; a few things (using pointers as arrays, mostly), without much benefit,
+;; since pointers can always be cast. The idea is to use (pointer-to byte)
+;; as a replacement, like C programs used to use char*.
 ;;
 ;; Declare is a general purpose forward-declaration facility. It is
 ;; responsible for:
@@ -53,7 +43,28 @@
 ;;  - (require STRING) reads in another file, and loads the definitions that the other
 ;;    file exports
 ;;  - (export N*) declares that the names N are available to other files
-(require "arch/mars.lisp")
+;;
+;; Finally, spc supports a kind of static metaprogramming - static if, written *if. It
+;; is used to conditionally compile code:
+;;
+;;    (*if COND C1 C2?)
+;;
+;; Depending upon the value of COND (a compile-time conditional), this expands to either
+;; C1 or C2 in-place (or nothing if C2 is not givenm, and COND is false). Currently, the
+;; following conditions are supported:
+;;
+;;    STRING - Always true
+;;    INTEGER - True when the value is != 0
+;;    (platform? STRING) - True when the backend's name is the same as the given string
+;;
+;; In conjunction with *if, *error allows users to raise compile-time errors from within
+;; their own code:
+;;
+;;    (*error STRING)
+
+(*if (platform? "mars")
+ (require "arch/mars.lisp")
+ (*error "Sample must be compiled with 'mars' backend"))
 
 (declare
  (linked-ints
