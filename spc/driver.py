@@ -519,6 +519,11 @@ class Driver:
 
             (if EXPRESSION STATEMENT STATEMENT?)
 
+            (switch
+             (case EXPRESSION STATEMENT)
+             (case EXPRESSION STATEMENT)
+             (else STATEMENT))
+
             (while EXPRESSION STATEMENT)
             (break)
             (continue)
@@ -585,6 +590,49 @@ class Driver:
                     self.process_statement(statement[3])
 
                 self.backend.handle_if_end()
+
+            elif statement[0].content == 'switch':
+                else_read = False
+                self.backend.handle_switch_start()
+                for case in statement[1:]:
+                    if else_read:
+                        raise CompilerError.from_token(statement[0],
+                            'Cannot have an additional case after an else')
+
+                    if not isinstance(case, list):
+                        raise CompilerError.from_token(statement[0],
+                            'Case must be of the form (case EXPRESSION STATEMENT) or (else STATEMENT)')
+
+                    if len(case) not in (2, 3):
+                        raise CompilerError.from_token(statement[0],
+                            'Case must be of the form (case EXPRESSION STATEMENT) or (else STATEMENT')
+
+                    if not is_identifier(case[0]):
+                        raise CompilerError.from_token(statement[0],
+                            'Case must be of the form (case EXPRESSION STATEMENT) or (else STATEMENT)')
+
+                    if case[0].content == 'case':
+                        if len(case) != 3:
+                            raise CompilerError.from_token(statement[0],
+                                'Case must be of the form (case EXPRESSION STATEMENT)')
+
+                        cond = self.parse_expression(case[1])
+                        self.backend.handle_case_start(cond)
+
+                        body = self.process_statement(case[2])
+                        self.backend.handle_case_end()
+                    elif case[0].content == 'else':
+                        if len(case) != 2:
+                            raise CompilerError.from_token(statement[0],
+                                'Else must be of the form (else STATEMENT)')
+                                        
+                        else_read = True
+                        self.backend.handle_case_start(None)
+                        body = self.process_statement(case[1])
+                        
+                        self.backend.handle_case_end() 
+
+                self.backend.handle_switch_end()
 
             elif statement[0].content == 'while':
                 if len(statement) != 3:

@@ -26,6 +26,29 @@ WhileLabels = namedtuple('WhileLabels', ['cond', 'exit'])
 # when the condition is true (to skip the else block)
 IfLabels = namedtuple('IfLabels', ['else_body', 'end'])
 
+# Switch conditionals are handled sort of like if conditionals:
+#
+#  (switch          |   
+#   (case T1 B1)    |       jump-if-not T1, l1prime; ...; jump l4; l1prime:
+#   (case T2 B2)    |       jump-if-not T2, l2prime; ...; jump l4; l2prime:
+#   (else B3))      |       ...
+#                   |   l4:
+class SwitchLabels:
+    """
+    Switch labels are similar to conditionals:
+
+        (switch         |
+         (case T1 B1)   | jump-if-not T1, case_lbl_1; ...; jump end; case_lbl_1:
+         (case T2 B2)   | jump-if-not T2, case_lbl_2; ...; jump end; case_lbl_2:
+         (else B3)      | ...; end_lbl:
+
+    Since each case is processed in order, only the current case end label and 
+    the end switch label is available at any given time.
+    """
+    def __init__(self, end_label):
+        self.end_label = end_label
+        self.case_end_label = None
+
 class FunctionStack:
     """
     Tracks where variables are on the function's stack.

@@ -115,6 +115,28 @@ class EmptyBackend:
         Called after reading an if.
         """
 
+    def handle_switch_start(self):
+        """
+        Called after reading a switch, but before any cases.
+        """
+
+    def handle_switch_end(self):
+        """
+        Called after reading all the cases in a switch.
+        """
+
+    def handle_case_start(self, cond):
+        """
+        Called after reading the condition of a case, but before the body.
+
+        Note that 'cond' is None if this is an 'else'.
+        """
+
+    def handle_case_end(self):
+        """
+        Called after reading the body of a case, including an 'else'
+        """
+
     def handle_while(self, cond):
         """
         Called after reading the condition of a while, but before the body.
@@ -165,6 +187,7 @@ class BaseBackend:
 
         self.if_labels = []
         self.while_labels = []
+        self.switch_labels = []
 
     def error(self, line, col, fmt, *args, **kwargs):
         """

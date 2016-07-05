@@ -5,7 +5,7 @@ import logging
 
 from ..backend import BaseBackend
 from ..backend_utils import (
-    comment_after, ContextMixin, IfLabels, ThirtyTwoMixin, WhileLabels,
+    comment_after, ContextMixin, IfLabels, SwitchLabels, ThirtyTwoMixin, WhileLabels,
 )
 from .. import expressions
 from ..require_processor import RequireProcessor
@@ -1175,6 +1175,61 @@ class Common32Backend(ContextMixin, ThirtyTwoMixin, BaseBackend):
         if_context = self.if_labels[-1]
         self.templates.emit_label(if_context.end)
         self.if_labels.pop()
+
+    def handle_switch_start(self):
+        """
+        Handles the start of switch block.
+        """
+        self._write_comment('===== Switch Start =====')
+
+        switch_context = SwitchLabels(next(self.label_maker))
+        self.switch_labels.append(switch_context)
+
+    def handle_case_start(self, cond):
+        """
+        Handles the start of a case block.
+        """
+        self._write_comment('===== Case Start =====')
+        self._write_comment('Condition: {}', cond)
+
+        switch_context = self.switch_labels[-1]
+        switch_context.case_end_label = next(self.label_maker)
+
+        if cond is not None:
+            tmp_reg = self.templates.tmp_regs[0]
+            temp_context = self.current_context.func_stack.get_temp_context(self)
+            with temp_context:
+                cond_dest, cond_type = (
+                    self._compile_expression(cond, temp_context))
+
+                if cond_type is not types.Integer:
+                    self.error(*cond.loc, 'Conditional must be an integer')
+
+                self.templates.emit_load_stack_word(tmp_reg, cond_dest)
+
+            # The position outside the context is deliberate - we have to avoid
+            # any situations where the code doesn't execute the stack adjustment
+            # code. In this case, indenting this write call will leave the stack
+            # deeper than it should be, if the branch is taken
+            self.templates.emit_branch_if_zero(tmp_reg, switch_context.case_end_label)
+
+    def handle_case_end(self):
+        """
+        Handles the end of a case block.
+        """
+        self._write_comment('===== Case End =====')
+        switch_context = self.switch_labels[-1]
+        
+        self.templates.emit_jump(switch_context.end_label)
+        self.templates.emit_label(switch_context.case_end_label)
+
+    def handle_switch_end(self):
+        """
+        Handles the end of a switch block.
+        """
+        self._write_comment('===== Switch End =====')
+        switch_context = self.switch_labels.pop()
+        self.templates.emit_label(switch_context.end_label)
 
     def handle_while(self, cond):
         """

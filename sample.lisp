@@ -138,6 +138,15 @@
   ;; Conditionals take the form:
   ;;   (if E B B?) where E is the condition, and the B's are the true body
   ;;     and the optional false body
+  ;;
+  ;;   (switch
+  ;;    (case E1 B1)
+  ;;    (case E2 B2)
+  ;;    (case E3 B3)
+  ;;    ...
+  ;;    (else Bn))
+  ;;
+  ;; Switch is closer to Scheme's cond than C-style switch.
   (while (!= list 0)
    (block
     ;; Accessors / assignable targets:
