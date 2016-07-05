@@ -1,7 +1,6 @@
-(require "arch/linux_x86.lisp")
+(require "arch/mars.lisp")
 
 (declare
-  (strlen (function integer string))
   (print (function byte string))
   (println (function byte string))
   (assert (function byte integer string))
