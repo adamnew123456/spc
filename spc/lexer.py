@@ -17,6 +17,24 @@ LOGGER = logging.getLogger('spc.lexer')
 
 Token = namedtuple('Token', ['type', 'content', 'filename', 'line', 'column'])
 
+def is_identifier(token):
+    """
+    Returns True if the token is a single identifier token.
+    """
+    return isinstance(token, Token) and token.type == IDENTIFIER
+
+def is_integer(token):
+    """
+    Returns True if the token is a single numeric token.
+    """
+    return isinstance(token, Token) and token.type == INTEGER
+
+def is_string(token):
+    """
+    Returns True if the token is a single string token.
+    """
+    return isinstance(token, Token) and token.type == STRING
+
 def to_list(lexer_stream):
     """
     Takes the tokens from a lexer and generates a series of nested lists.

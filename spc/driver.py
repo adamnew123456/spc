@@ -12,24 +12,6 @@ from . import types
 
 LOGGER = logging.getLogger('spc.driver')
 
-def is_identifier(token):
-    """
-    Returns True if the token is a single identifier token.
-    """
-    return isinstance(token, lexer.Token) and token.type == lexer.IDENTIFIER
-
-def is_integer(token):
-    """
-    Returns True if the token is a single numeric token.
-    """
-    return isinstance(token, lexer.Token) and token.type == lexer.INTEGER
-
-def is_string(token):
-    """
-    Returns True if the token is a single string token.
-    """
-    return isinstance(token, lexer.Token) and token.type == lexer.STRING
-
 class Driver:
     """
     Responsible for reading nested lists from the lexer and passing them off
@@ -56,7 +38,7 @@ class Driver:
             (func-pointer TYPE TYPE*)
         """
         if isinstance(chunk, list):
-            if not is_identifier(chunk[0]):
+            if not lexer.is_identifier(chunk[0]):
                 raise CompilerError(self.filename, 0, 0,
                     'Invalid type: {}', lexer.print_list(chunk))
 
@@ -102,7 +84,7 @@ class Driver:
         if not isinstance(chunk, list):
             return self.parse_type(chunk)
 
-        if not is_identifier(chunk[0]):
+        if not lexer.is_identifier(chunk[0]):
             raise CompilerError.from_token(chunk[0],
                 'Invalid declaration type')
 
@@ -112,7 +94,7 @@ class Driver:
                     'ascii must be of the form (ascii STRING)')
 
             string_literal = chunk[1]
-            if not is_string(string_literal):
+            if not lexer.is_string(string_literal):
                 raise CompilerError.from_token(chunk[0],
                     'ascii must be of the form (ascii STRING)')
 
@@ -125,7 +107,7 @@ class Driver:
             array_type = self.parse_type(chunk[1])
 
             count = chunk[2]
-            if not is_integer(count):
+            if not lexer.is_integer(count):
                 raise CompilerError.from_token(chunk[0],
                     'array-of must be of the form (array-of TYPE NUMBER)')
 
@@ -163,7 +145,7 @@ class Driver:
                         'Field must be of the form (IDENTIFIER TYPE)')
 
                 identifier = field_def[0]
-                if not is_identifier(identifier):
+                if not lexer.is_identifier(identifier):
                     raise CompilerError.from_token(chunk[0],
                         'Field must be of the form (IDENTIFIER TYPE)')
 
@@ -211,7 +193,7 @@ class Driver:
                     'Each declaration must be of the form (IDENTIFIER KIND)')
 
 
-            if not is_identifier(element[0]):
+            if not lexer.is_identifier(element[0]):
                 raise CompilerError.from_token(declaration[0],
                     'Each declaration must start with an identifier')
 
@@ -237,7 +219,7 @@ class Driver:
         self.backend.update_position(require[0].line, require[0].column)
 
         filename = require[1]
-        if not is_string(filename):
+        if not lexer.is_string(filename):
             raise CompilerError.from_token(require[0],
                 'require must take the form (require STRING)')
 
@@ -252,7 +234,7 @@ class Driver:
         names = []
 
         for element in exports[1:]:
-            if not is_identifier(element):
+            if not lexer.is_identifier(element):
                 raise CompilerError.from_token(element,
                     'Each export must be an identifier')
 
@@ -311,10 +293,10 @@ class Driver:
                 raise CompilerError(self.filename, 0, 0,
                     'Cannot have a () in an expression')
 
-            if is_integer(expr[0]):
+            if lexer.is_integer(expr[0]):
                 raise CompilerError.from_token(expr[0],
                     'Cannot call an integer')
-            elif not is_identifier(expr[0]):
+            elif not lexer.is_identifier(expr[0]):
                 func = self.parse_expression(expr[0])
                 args = tuple(self.parse_expression(arg)
                         for arg in expr[1:])
@@ -396,7 +378,7 @@ class Driver:
 
                 fields = []
                 for field in expr[2:]:
-                    if not is_identifier(field):
+                    if not lexer.is_identifier(field):
                         raise CompilerError.from_token(expr[0],
                             'field must be of the form (field EXPR IDENTIFIER+)')
 
@@ -502,10 +484,10 @@ class Driver:
 
                 loc = func.loc
                 return expressions.Call(loc, func, args)
-        elif is_integer(expr):
+        elif lexer.is_integer(expr):
             loc = expr.line, expr.column
             return expressions.Integer(loc, expr.content)
-        elif is_identifier(expr):
+        elif lexer.is_identifier(expr):
             loc = expr.line, expr.column
             return expressions.Variable(loc, expr.content)
 
@@ -699,7 +681,7 @@ class Driver:
                 'Function definition must be of the form (define NAME (PARAMS) DECLARE BODY)')
 
         name = definition[1]
-        if not is_identifier(name):
+        if not lexer.is_identifier(name):
             raise CompilerError.from_token(definition[0],
                 'Function definition does not have a valid name')
 
@@ -741,12 +723,12 @@ class Driver:
                 'Inline assembly must be of the form (assemble NAME STR)')
 
         name = definition[1]
-        if not is_identifier(name):
+        if not lexer.is_identifier(name):
             raise CompilerError.from_token(definition[0],
                 'Inline assembly does not have a valid name')
 
         assembly = definition[2]
-        if not is_string(assembly):
+        if not lexer.is_string(assembly):
             raise CompilerError.from_token(definition[0],
                 'Inline assembly does not have valid code')
 
