@@ -491,6 +491,149 @@ class Driver:
             loc = expr.line, expr.column
             return expressions.Variable(loc, expr.content)
 
+    def process_block(self, block):
+        "Processes (block STATEMENT+)"
+        line = block[0].line
+        column = block[0].column
+        self.backend.update_position(line, column)
+        self.backend.handle_block_start()
+
+        for stmt in block[1:]:
+            self.process_statement(stmt)
+
+        self.backend.handle_block_end()
+
+    def process_set(self, set_):
+        "Processes (set_ ASSIGNABLE EXPRESSION)"
+        if len(set_) != 3:
+            raise CompilerError.from_token(set_[0],
+                'Set must be of the form (set_ ASSIGNABLE EXPRESSION)')
+
+        assignable = self.parse_expression(set_[1])
+        expression = self.parse_expression(set_[2])
+
+        line = set_[0].line
+        column = set_[0].column
+        self.backend.update_position(line, column)
+        self.backend.handle_set(assignable, expression)
+
+    def process_if(self, if_):
+        "Processes (if EXPRESSION STATEMENT STATEMENT?)"
+        if len(if_) not in (3, 4):
+            raise CompilerError.from_token(if_[0],
+                'If must be of the form (if EXPRESSION STATEMENT STATEMENT?)')
+
+        condition = self.parse_expression(if_[1])
+
+        line = if_[0].line
+        column = if_[0].column
+        self.backend.update_position(line, column)
+        self.backend.handle_if(condition)
+
+        self.process_statement(if_[2])
+        self.backend.handle_else()
+
+        if len(if_) == 4:
+            self.process_statement(if_[3])
+
+        self.backend.handle_if_end()
+
+    def process_switch(self, switch):
+        "Processes (switch ...)"
+        else_read = False
+        self.backend.handle_switch_start()
+        for case in switch[1:]:
+            if else_read:
+                raise CompilerError.from_token(switch[0],
+                    'Cannot have an additional case after an else')
+
+            if not isinstance(case, list):
+                raise CompilerError.from_token(switch[0],
+                    'Case must be of the form (case EXPRESSION STATEMENT) or (else STATEMENT)')
+
+            if len(case) not in (2, 3):
+                raise CompilerError.from_token(switch[0],
+                    'Case must be of the form (case EXPRESSION STATEMENT) or (else STATEMENT')
+
+            if not lexer.is_identifier(case[0]):
+                raise CompilerError.from_token(switch[0],
+                    'Case must be of the form (case EXPRESSION STATEMENT) or (else STATEMENT)')
+
+            if case[0].content == 'case':
+                if len(case) != 3:
+                    raise CompilerError.from_token(switch[0],
+                        'Case must be of the form (case EXPRESSION STATEMENT)')
+
+                cond = self.parse_expression(case[1])
+                self.backend.handle_case_start(cond)
+
+                body = self.process_statement(case[2])
+                self.backend.handle_case_end()
+            elif case[0].content == 'else':
+                if len(case) != 2:
+                    raise CompilerError.from_token(switch[0],
+                        'Else must be of the form (else STATEMENT)')
+                                
+                else_read = True
+                self.backend.handle_case_start(None)
+                body = self.process_statement(case[1])
+                
+                self.backend.handle_case_end() 
+
+        self.backend.handle_switch_end()
+
+    def process_while(self, while_):
+        "Processes (while EXPRESSION STATEMENT)"
+        if len(while_) != 3:
+            raise CompilerError.from_token(while_[0],
+                'While must be of the form (while EXPRESSION STATEMENT)')
+
+        condition = self.parse_expression(while_[1])
+
+        line = while_[0].line
+        column = while_[0].column
+        self.backend.update_position(line, column)
+        self.backend.handle_while(condition)
+
+        self.process_statement(while_[2])
+
+        self.backend.handle_while_end()
+
+    def process_break(self, break_):
+        "Processes (break)"
+        if len(break_) != 1:
+            raise CompilerError.from_token(break_[0],
+                'Break must be of the form (break)')
+
+        line = break_[0].line
+        column = break_[0].column
+        self.backend.update_position(line, column)
+        self.backend.handle_break()
+
+    def process_continue(self, continue_):
+        "Process (continue)"
+        if len(continue_) != 1:
+            raise CompilerError.from_token(continue_[0],
+                'Continue must be of the form (continue)')
+
+        line = continue_[0].line
+        column = continue_[0].column
+        self.backend.update_position(line, column)
+        self.backend.handle_continue()
+
+    def process_return(self, return_):
+        "Process (return EXPRESSION)"
+        if len(return_) != 2:
+            raise CompilerError.from_token(return_[0],
+                'Return must be of the form (return EXPRESSION)')
+
+        expr = self.parse_expression(return_[1])
+
+        line = return_[0].line
+        column = return_[0].column
+        self.backend.update_position(line, column)
+        self.backend.handle_return(expr)
+
     def process_statement(self, statement):
         """
         Processes a statement.
@@ -524,146 +667,27 @@ class Driver:
                 self.backend.update_position(line, column)
                 self.backend.handle_raw_expression(expr)
 
-            elif not is_identifier(statement[0]):
+            elif not lexer.is_identifier(statement[0]):
                 # This is actually guaranteed to be invalid, but it's easier
                 # to let the expression parser take care of raising for us
                 return self.parse_expression(statement)
-
-            elif statement[0].content == 'block':
-                line = statement[0].line
-                column = statement[0].column
-                self.backend.update_position(line, column)
-                self.backend.handle_block_start()
-
-                for sub_stmt in statement[1:]:
-                    self.process_statement(sub_stmt)
-
-                self.backend.handle_block_end()
-
-            elif statement[0].content == 'set':
-                if len(statement) != 3:
-                    raise CompilerError.from_token(statement[0],
-                        'Set must be of the form (set ASSIGNABLE EXPRESSION)')
-
-                assignable = self.parse_expression(statement[1])
-                expression = self.parse_expression(statement[2])
-
-                line = statement[0].line
-                column = statement[0].column
-                self.backend.update_position(line, column)
-                self.backend.handle_set(assignable, expression)
-
-            elif statement[0].content == 'if':
-                if len(statement) not in (3, 4):
-                    raise CompilerError.from_token(statement[0],
-                        'If must be of the form (if EXPRESSION STATEMENT STATEMENT?)')
-
-                condition = self.parse_expression(statement[1])
-
-                line = statement[0].line
-                column = statement[0].column
-                self.backend.update_position(line, column)
-                self.backend.handle_if(condition)
-
-                self.process_statement(statement[2])
-                self.backend.handle_else()
-
-                if len(statement) == 4:
-                    self.process_statement(statement[3])
-
-                self.backend.handle_if_end()
-
-            elif statement[0].content == 'switch':
-                else_read = False
-                self.backend.handle_switch_start()
-                for case in statement[1:]:
-                    if else_read:
-                        raise CompilerError.from_token(statement[0],
-                            'Cannot have an additional case after an else')
-
-                    if not isinstance(case, list):
-                        raise CompilerError.from_token(statement[0],
-                            'Case must be of the form (case EXPRESSION STATEMENT) or (else STATEMENT)')
-
-                    if len(case) not in (2, 3):
-                        raise CompilerError.from_token(statement[0],
-                            'Case must be of the form (case EXPRESSION STATEMENT) or (else STATEMENT')
-
-                    if not is_identifier(case[0]):
-                        raise CompilerError.from_token(statement[0],
-                            'Case must be of the form (case EXPRESSION STATEMENT) or (else STATEMENT)')
-
-                    if case[0].content == 'case':
-                        if len(case) != 3:
-                            raise CompilerError.from_token(statement[0],
-                                'Case must be of the form (case EXPRESSION STATEMENT)')
-
-                        cond = self.parse_expression(case[1])
-                        self.backend.handle_case_start(cond)
-
-                        body = self.process_statement(case[2])
-                        self.backend.handle_case_end()
-                    elif case[0].content == 'else':
-                        if len(case) != 2:
-                            raise CompilerError.from_token(statement[0],
-                                'Else must be of the form (else STATEMENT)')
-                                        
-                        else_read = True
-                        self.backend.handle_case_start(None)
-                        body = self.process_statement(case[1])
-                        
-                        self.backend.handle_case_end() 
-
-                self.backend.handle_switch_end()
-
-            elif statement[0].content == 'while':
-                if len(statement) != 3:
-                    raise CompilerError.from_token(statement[0],
-                        'While must be of the form (while EXPRESSION STATEMENT)')
-
-                condition = self.parse_expression(statement[1])
-
-                line = statement[0].line
-                column = statement[0].column
-                self.backend.update_position(line, column)
-                self.backend.handle_while(condition)
-
-                self.process_statement(statement[2])
-
-                self.backend.handle_while_end()
-
-            elif statement[0].content == 'break':
-                if len(statement) != 1:
-                    raise CompilerError.from_token(statement[0],
-                        'Break must be of the form (break)')
-
-                line = statement[0].line
-                column = statement[0].column
-                self.backend.update_position(line, column)
-                self.backend.handle_break()
-            elif statement[0].content == 'continue':
-                if len(statement) != 1:
-                    raise CompilerError.from_token(statement[0],
-                        'Continue must be of the form (continue)')
-
-                line = statement[0].line
-                column = statement[0].column
-                self.backend.update_position(line, column)
-                self.backend.handle_continue()
-            elif statement[0].content == 'return':
-                if len(statement) != 2:
-                    raise CompilerError.from_token(statement[0],
-                        'Return must be of the form (return EXPRESSION)')
-
-                expr = self.parse_expression(statement[1])
-
-                line = statement[0].line
-                column = statement[0].column
-                self.backend.update_position(line, column)
-                self.backend.handle_return(expr)
             else:
-                expr = self.parse_expression(statement)
-                self.backend.handle_raw_expression(expr)
+                func = {
+                    'block': self.process_block,
+                    'set': self.process_set,
+                    'if': self.process_if,
+                    'switch': self.process_switch,
+                    'while': self.process_while,
+                    'break': self.process_break,
+                    'continue': self.process_continue,
+                    'return': self.process_return,
+                }.get(statement[0].content)
+
+                if func:
+                    func(statement)
+                else:
+                    expr = self.parse_expression(statement)
+                    self.backend.handle_raw_expression(expr)
         else:
             expr = self.parse_expression(statement)
             self.backend.handle_raw_expression(expr)
