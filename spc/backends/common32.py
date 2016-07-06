@@ -196,7 +196,7 @@ class Common32Backend(ContextMixin, ThirtyTwoMixin, BaseBackend):
                 "Cannot load another file inside of a function")
 
         try:
-            processor = RequireProcessor.require(filename)
+            processor = RequireProcessor.require(filename, self)
             if processor is None:
                 return
 

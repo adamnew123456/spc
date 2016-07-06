@@ -20,7 +20,7 @@ class RequireProcessor(EmptyBackend):
     defined in other files.
     """
     @staticmethod
-    def require(filename):
+    def require(filename, backend):
         """
         Returns a RequireProcessor which has processed the given filename,
         or None if this import has already been processed.
@@ -31,7 +31,7 @@ class RequireProcessor(EmptyBackend):
 
         IMPORT_CACHE.add(abs_filename)
         with open(filename) as require_stream:
-            req_processor = RequireProcessor(filename)
+            req_processor = RequireProcessor(filename, backend)
             lex = Lexer(require_stream, filename)
             drv = Driver(lex, req_processor)
 
@@ -39,7 +39,7 @@ class RequireProcessor(EmptyBackend):
 
             return req_processor
 
-    def __init__(self, filename):
+    def __init__(self, filename, real_backend):
         # This essentially 'shadows' types like 'string', which aren't really
         # exported, but should be available to required modules
         primitive_types = SymbolTable()
@@ -57,6 +57,11 @@ class RequireProcessor(EmptyBackend):
         self.filename = filename
         self.line = 0
         self.col = 0
+
+        # Anything copied from the real backend is generally necessary for
+        # static conditionals
+        self.real_backend = real_backend
+        self.platform_name = real_backend.platform_name
 
     def update_position(self, line, col):
         """
@@ -78,6 +83,12 @@ class RequireProcessor(EmptyBackend):
         self.import_list.add(abs_filename)
         return abs_filename
 
+    def _write_comment(self, comment, *args, **kwargs):
+        """
+        Passes a comment back to the backend. Needed for static conditionals.
+        """
+        self.real_backend._write_comment(comment, *args, **kwargs)
+
     def handle_require(self, filename):
         """
         This invokes itself recursively, as long as the require would not be
@@ -90,7 +101,7 @@ class RequireProcessor(EmptyBackend):
                 "Circular require detected: '{}'", filename)
 
         try:
-            req_processor = RequireProcessor.require(filename)
+            req_processor = RequireProcessor.require(filename, self.real_backend)
             if req_processor is None:
                 return
 
