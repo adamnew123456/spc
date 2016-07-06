@@ -40,7 +40,12 @@ class RequireProcessor(EmptyBackend):
             return req_processor
 
     def __init__(self, filename):
-        self.exported_types = SymbolTable()
+        # This essentially 'shadows' types like 'string', which aren't really
+        # exported, but should be available to required modules
+        primitive_types = SymbolTable()
+        primitive_types['string'] = types.PointerTo(types.Byte)
+
+        self.exported_types = SymbolTable(primitive_types)
         self.exported_values = SymbolTable()
         self.exported_arrays = SymbolTable()
 
@@ -89,13 +94,13 @@ class RequireProcessor(EmptyBackend):
             if req_processor is None:
                 return
 
-            for type_name, type_obj in req_processor.exported_types:
+            for type_name, type_obj in req_processor.exported_types.shallow_iter():
                 self.exported_types[type_name] = type_obj
 
-            for val_name, val_obj in req_processor.exported_values:
+            for val_name, val_obj in req_processor.exported_values.shallow_iter():
                 self.exported_values[val_name] = val_obj
 
-            for arr_name, arr_flag in req_processor.exported_arrays:
+            for arr_name, arr_flag in req_processor.exported_arrays.shallow_iter():
                 self.exported_arrays[arr_name] = arr_flag
         except OSError:
             raise CompilerError(self.filename, self.line, self.col,

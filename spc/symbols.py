@@ -12,10 +12,16 @@ class SymbolTable:
         self.is_global = is_global
         self.bindings = {}
 
-    def __iter__(self):
+    def shallow_iter(self):
+        """
+        Like __iter__, but doesn't yield from the parent.
+        """
         for name, value in self.bindings.items():
             yield name, value
 
+    def __iter__(self):
+        yield from self.shallow_iter()
+        
         if self.parent:
             yield from self.parent
             

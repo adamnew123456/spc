@@ -200,16 +200,16 @@ class Common32Backend(ContextMixin, ThirtyTwoMixin, BaseBackend):
             if processor is None:
                 return
 
-            for type_name, type_obj in processor.exported_types:
+            for type_name, type_obj in processor.exported_types.shallow_iter():
                 self._write_comment('Importing definition: {} of type {}', type_name, type_obj)
                 self.current_context.type_defns[type_name] = type_obj
 
-            for val_name, val_obj in processor.exported_values:
+            for val_name, val_obj in processor.exported_values.shallow_iter():
                 self._write_comment('Importing value: {} of type {}', val_name, val_obj)
                 self.current_context.value_defns[val_name] = val_obj
                 self.exported.add(val_name)
 
-            for arr_name, arr_obj in processor.exported_arrays:
+            for arr_name, arr_obj in processor.exported_arrays.shallow_iter():
                 self.current_context.array_bound[arr_name] = True
         except OSError:
             self.error(self.line, self.col,
