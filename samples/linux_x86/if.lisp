@@ -1,35 +1,18 @@
-(require "arch/linux_x86.lisp")
-
+(require "lib/assert.lisp")
 (declare
- (breakpoint (function byte))
- (say-yes (function integer integer))
- (say-no (function integer integer))
+ (should-not-execute (function byte))
  (main (function byte)))
 
-(define breakpoint ()
- (declare)
- (block))
-
-(define say-yes (x)
+(define should-not-execute ()
  (declare
-  (str.yes (ascii "YES\n")))
- (block
-  (linux.write 1 str.yes 4)
-  (return x)))
-
-(define say-no (x)
- (declare
-  (str.no (ascii "NO\n")))
- (block
-  (linux.write 1 str.no 3)
-  (return x)))
+  (msg (ascii "This should not have executed")))
+ (assert 0 msg))
 
 (define main ()
  (declare)
-
  (block
-  (if 1 (say-yes 0))
-  (if 0 (say-no 0))
+  (if 1 1)
+  (if 0 (should-not-execute))
 
-  (if 1 (say-yes 0) (say-no 0))
-  (if 0 (say-no 0) (say-yes 0))))
+  (if 1 1 (should-not-execute))
+  (if 0 (should-not-execute) 1)))

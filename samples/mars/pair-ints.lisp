@@ -1,7 +1,5 @@
-(require "arch/mars.lisp")
-    
+(require "lib/assert.lisp")
 (declare
- (newline (array-of byte 2))
  (int-pair
   (struct (a integer)
           (b integer)))
@@ -10,15 +8,13 @@
   (function byte)))
 
 (define main ()
- (declare (pair int-pair))
+ (declare 
+  (pair int-pair)
+  (msg.1 (ascii "pair.a should be 1"))
+  (msg.2 (ascii "pair.b should be 2")))
  (block
-  (set (array newline 0) (int-to-byte 10))
-  (set (array newline 1) (int-to-byte 0))
-
   (set (field pair a) 1)
   (set (field pair b) 2)
 
-  (mars.print-int (field pair a))
-  (mars.print-string newline)
-  (mars.print-int (field pair b))
-  (mars.print-string newline)))
+  (assert (== (field pair a) 1) msg.1)
+  (assert (== (field pair b) 2) msg.2)))

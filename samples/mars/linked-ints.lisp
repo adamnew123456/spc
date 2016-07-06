@@ -1,8 +1,6 @@
+(require "lib/assert.lisp")
 (require "arch/mars.lisp")
-    
 (declare
- (newline (array-of byte 2))
-
  (linked-ints
   (struct (value integer)
           (next (pointer-to linked-ints))))
@@ -25,7 +23,11 @@
 
 (define main ()
  (declare
-  (list (pointer-to linked-ints)))
+  (list (pointer-to linked-ints))
+  (msg.1 (ascii "List[0] should be 2"))
+  (msg.2 (ascii "List[1] should be 1"))
+  (msg.3 (ascii "List[2] should be 0"))
+  (msg.4 (ascii "List[3] should be NULL")))
  
  (block
   (set (array newline 0) (int-to-byte 10))
@@ -35,12 +37,13 @@
   (set list (cons 1 list))
   (set list (cons 2 list))
 
-  (mars.print-int (field (deref list) value))
-  (mars.print-string newline)
+  (assert (== (field (deref list) value) 2) msg.1)
 
   (set list (field (deref list) next))
-  (mars.print-int (field (deref list) value))
-  (mars.print-string newline)
+  (assert (== (field (deref list) value) 1) msg.2)
 
-  (mars.print-int (ptr-to-int (field (deref list) next)))
-  (mars.print-string newline)))
+  (set list (field (deref list) next))
+  (assert (== (field (deref list) value) 0) msg.3)
+
+  (set list (field (deref list) next))
+  (assert (== list 0) msg.4)))

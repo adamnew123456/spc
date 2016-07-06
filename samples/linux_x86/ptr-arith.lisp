@@ -1,41 +1,6 @@
-(require "arch/linux_x86.lisp")
-
+(require "lib/assert.lisp")
 (declare
-  (strlen (function integer string))
-  (print (function byte string))
-  (println (function byte string))
-  (assert (function byte integer string))
   (main (function byte)))
-
-;; Computes the length of the given string
-(define strlen (str)
-  (declare
-   (i integer))
-  (block
-   (set i 0)
-   (while (!= 0 (byte-to-int (array str i)))
-    (set i (+ i 1)))
-
-   (return i)))
-
-;; Writes the given string to standard output
-(define print (str)
-  (declare)
-  (block
-    (linux.write 1 str (strlen str))))
-
-(define println (str)
-  (declare
-    (newline (ascii "\n")))
-  (block
-    (print str)
-    (print newline)))
-
-;; Asserts that the given condition is true, or not
-(define assert (cond message)
- (declare)
- (block
-  (if (! cond) (println message))))
 
 (define main ()
  (declare

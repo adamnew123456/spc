@@ -19,7 +19,7 @@
   (set y 3)
 
   (assert (== (+ x y) 11) msg.1)
-  (assert (== (- x y) 5) msg.2)
+  (assert (== (- x y) 3) msg.2)
   (assert (== (* x y) 24) msg.3)
   (assert (== (/ x y) 2) msg.4)
   (assert (== (% x 7) 1) msg.5)))

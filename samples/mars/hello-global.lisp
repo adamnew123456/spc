@@ -1,5 +1,4 @@
-(require "arch/mars.lisp")
-
+(require "lib/io.lisp")
 (declare
  (hello-world (ascii "Hello, World!\n"))
  (main (function byte)))
@@ -7,4 +6,4 @@
 (define main ()
  (declare)
  (block
-  (mars.print-string hello-world)))
+  (io.print hello-world)))

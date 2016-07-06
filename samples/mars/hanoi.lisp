@@ -1,4 +1,5 @@
-(require "arch/mars.lisp")
+(require "lib/str.lisp")
+(require "lib/io.lisp")
 
 (declare
  (move-disk (ascii "Move disk "))
@@ -16,13 +17,22 @@
   (if (> disk 1)
    (hanoi src temp dest (- disk 1)))
 
-  (mars.print-string move-disk)
-  (mars.print-int disk)
-  (mars.print-string from-peg)
-  (mars.print-int src)
-  (mars.print-string to-peg)
-  (mars.print-int dest)
-  (mars.print-string newline)
+  (io.print move-disk)
+
+  (str.int->str disk intbuff)
+  (io.print intbuff)
+
+  (io.print from-peg)
+
+  (str.int->str src intbuff)
+  (io.print intbuff)
+
+  (io.print to-peg)
+
+  (str.int->str dest intbuff)
+  (io.print intbuff)
+
+  (io.print newline)
 
   (if (> disk 1)
    (hanoi temp dest src (- disk 1)))))
@@ -30,4 +40,4 @@
 (define main ()
  (declare)
  (block
-  (hanoi 1 3 2 (mars.read-int))))
+  (hanoi 1 3 2 (io.read-int))))

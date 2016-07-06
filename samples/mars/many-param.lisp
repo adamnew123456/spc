@@ -1,26 +1,19 @@
-(require "arch/mars.lisp")
-    
+(require "lib/assert.lisp")
 (declare
- (newline (array-of byte 3))
  (three-param (function byte integer integer integer))
  (main (function byte)))
 
 (define three-param (a b c)
- (declare)
+ (declare
+  (msg.1 (ascii "a should be 1"))
+  (msg.2 (ascii "b should be 2"))
+  (msg.3 (ascii "c should be 3")))
  (block
-  (mars.print-int a)
-  (mars.print-string newline)
-
-  (mars.print-int b)
-  (mars.print-string newline)
-
-  (mars.print-int c)
-  (mars.print-string newline)))
+  (assert (== a 1) msg.1)
+  (assert (== b 2) msg.2)
+  (assert (== c 3) msg.3)))
 
 (define main ()
  (declare)
  (block
-  (set (array newline 0) (int-to-byte 10))
-  (set (array newline 1) (int-to-byte 0))
-
   (three-param 1 2 3)))

@@ -1,29 +1,6 @@
-(require "arch/mars.lisp")
-
+(require "lib/assert.lisp")
 (declare
-  (print (function byte string))
-  (println (function byte string))
-  (assert (function byte integer string))
   (main (function byte)))
-
-;; Writes the given string to standard output
-(define print (str)
-  (declare)
-  (block
-    (mars.print-string str)))
-
-(define println (str)
-  (declare
-    (newline (ascii "\n")))
-  (block
-    (print str)
-    (print newline)))
-
-;; Asserts that the given condition is true, or not
-(define assert (cond message)
- (declare)
- (block
-  (if (! cond) (println message))))
 
 (define main ()
  (declare

@@ -1,5 +1,4 @@
-(require "arch/mars.lisp")
-
+(require "lib/assert.lisp")
 (declare
  (newline (ascii "\n"))
  (double (function integer integer))
@@ -21,9 +20,9 @@
  (return (func 42)))
 
 (define main ()
- (declare)
+ (declare
+  (msg.1 (ascii "(do-42 double) should be 84"))
+  (msg.2 (ascii "(do-42 triple) should be 126")))
  (block
-  (mars.print-int (do-42 double))
-  (mars.print-string newline)
-  (mars.print-int (do-42 triple))
-  (mars.print-string newline)))
+  (assert (== (do-42 double) 84) msg.1)
+  (assert (== (do-42 triple) 126) msg.2)))

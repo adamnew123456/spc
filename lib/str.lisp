@@ -1,14 +1,13 @@
-(require "arch/linux_x86.lisp")
+(declare 
+ (str.rev (function byte string))
+ (str.len (function integer string))
+ (str.int->str (function byte integer string))
+ (str.str->int (function integer string)))
 
-(declare
-  (strlen (function integer string))
-  (strrev (function byte string))
-  (print (function byte string))
-  (itoa (function byte integer string))
-  (main (function byte)))
-
+(export str.rev str.len str.int->str str.str->int)
+    
 ;; Computes the length of the given string
-(define strlen (str)
+(define str.len (str)
   (declare
    (i integer))
   (block
@@ -19,7 +18,7 @@
    (return i)))
 
 ;; Reverses the given string
-(define strrev (str)
+(define str.rev (str)
  (declare
   (i integer)
   (j integer)
@@ -27,7 +26,7 @@
 
  (block
   (set i 0)
-  (set j (- (strlen str) 1))
+  (set j (- (str.len str) 1))
 
   (while (> j i)
    (block
@@ -38,15 +37,7 @@
     (set i (+ i 1))
     (set j (- j 1))))))
 
-;; Writes the given string to standard output
-(define print (str)
-  (declare
-   (newline (ascii "\n")))
-  (block
-    (linux.write 1 str (strlen str))
-    (linux.write 1 newline 1)))
-
-(define itoa (x buffer)
+(define str.int->str (x buffer)
  (declare
   (index integer))
 
@@ -66,20 +57,24 @@
       (set x (/ x 10))))
 
     (set (array buffer index) (int-to-byte 0))
-    (strrev buffer)))))
+    (str.rev buffer)))))
 
-(define main ()
+(define str.str->int (buffer)
  (declare
-  (str.intbuff (ascii "   ")))
+  (accum integer)
+  (index string))
+
  (block
-  (itoa 304 str.intbuff)
-  (print str.intbuff)
+  (set index buffer)
+  (set accum 0)
 
-  (itoa 0 str.intbuff)
-  (print str.intbuff)
+  (while (&& (>= (byte-to-int (deref index)) 48)
+             (<= (byte-to-int (deref index)) 57))
+   (block
+    (set accum (* accum 10))
+    (set accum 
+     (+ accum (- (byte-to-int (deref index)) 48)))
 
-  (itoa (! 0) str.intbuff)
-  (print str.intbuff)
+    (set index (+ index 1))))
 
-  (itoa (! 1) str.intbuff)
-  (print str.intbuff)))
+  (return accum)))
