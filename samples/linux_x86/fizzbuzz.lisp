@@ -1,4 +1,5 @@
 (require "lib/io.lisp")
+(require "lib/str.lisp")
 (declare
   (newline (ascii "\n"))
   (fizz (ascii "Fizz"))
