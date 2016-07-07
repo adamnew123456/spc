@@ -45,9 +45,17 @@ class RequireProcessor(EmptyBackend):
         primitive_types = SymbolTable()
         primitive_types['string'] = types.PointerTo(types.Byte)
 
-        self.exported_types = SymbolTable(primitive_types)
-        self.exported_values = SymbolTable()
-        self.exported_arrays = SymbolTable()
+        # This adds another level to the exported set; since require is not
+        # transitive (that is, if A requires B, and B requires C, then
+        # A doesn't necessarily require C), all the "internal" symbols
+        # have to be defined elsewhere so they don't leak
+        self.internal_types = SymbolTable(primitive_types)
+        self.internal_values = SymbolTable()
+        self.internal_arrays = SymbolTable()
+
+        self.exported_types = SymbolTable(self.internal_types)
+        self.exported_values = SymbolTable(self.internal_values)
+        self.exported_arrays = SymbolTable(self.internal_values)
 
         self.all_values = {}
         self.all_arrays = {}
@@ -106,13 +114,13 @@ class RequireProcessor(EmptyBackend):
                 return
 
             for type_name, type_obj in req_processor.exported_types.shallow_iter():
-                self.exported_types[type_name] = type_obj
+                self.internal_types[type_name] = type_obj
 
             for val_name, val_obj in req_processor.exported_values.shallow_iter():
-                self.exported_values[val_name] = val_obj
+                self.internal_values[val_name] = val_obj
 
             for arr_name, arr_flag in req_processor.exported_arrays.shallow_iter():
-                self.exported_arrays[arr_name] = arr_flag
+                self.internal_arrays[arr_name] = arr_flag
         except OSError:
             raise CompilerError(self.filename, self.line, self.col,
                 "Could not open file '{}' for reading", filename)
