@@ -30,10 +30,10 @@ types and functions, notes about the restrictions which make the compiler somewh
 easier to implement. As a bonus, it actually serves as a runnable example which
 computes the sum of the numbers entered::
 
-    $ mkdir -p build/mars
-    $ python3 compile.py -l -b mars -o build/mars/mars.asm arch/mars.lisp
-    $ python3 compile.py -b mars -o build/mars/sample.asm sample.lisp
-    $ cd build/mars
+    $ mkdir -p build/mars_mips
+    $ python3 compile.py -l -b mars_mips -o build/mars_mips/mars_mips.asm arch/mars_mips.lisp
+    $ python3 compile.py -b mars_mips -o build/mars_mips/sample.asm sample.lisp
+    $ cd build/mars_mips
     $ java -jar Mars.jar nc p sample.asm
     5
     10
@@ -47,15 +47,15 @@ Compiling Things
 Run ``python3 compiler.py -h`` to see the compiler's help. Currently, there
 two backends:
 
-- ``mars``, for the MARS educational MIPS simulator.
+- ``mars_mips``, for the MARS educational MIPS simulator.
 - ``linux_x86``, for Linux running on 32-bit Intel processors. This has been
   tested with the GNU ``as`` assembler and the GNU ``ld`` linker.
 
 All the samples that come with the compiler can be compiled via the Makefile.
 GNU Make (or a make with basic pattern rules support) is required::
 
-    $ make build/mars/fizzbuzz.asm
-    $ cd build/mars
+    $ make build/mars_mips/fizzbuzz.asm
+    $ cd build/mars_mips
     $ java -jar Mars.jar nc p fizzbuzz.asm
     1
     2

@@ -9,7 +9,7 @@ from .common32 import Common32Backend
 from .. import types
 from ..util import mangle_label
 
-LOGGER = logging.getLogger('spc.mars')
+LOGGER = logging.getLogger('spc.mars_mips')
 
 class MarsFunctionStack(FunctionStack):
     """
@@ -53,7 +53,8 @@ class MarsTemplates:
     # this is acceptable
     tmp_regs = ['$t0', '$t1']
 
-    platform_name = 'mars'
+    platform_os = 'mars'
+    platform_arch = 'mips'
     comment_fmt = '# {}'
 
     def __init__(self):

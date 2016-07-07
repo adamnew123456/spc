@@ -6,7 +6,7 @@
 
 (define has-io.print ()
  (declare)
- (*if (var-def? "io.print")
+ (*if (var-def? io.print)
   (return 1)
   (return 0)))
 

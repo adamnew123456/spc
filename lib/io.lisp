@@ -1,7 +1,7 @@
-(*if (platform? "linux_x86")
+(*if (platform? "linux" "x86")
  (require "arch/linux_x86.lisp"))
-(*if (platform? "mars")
- (require "arch/mars.lisp"))
+(*if (platform? "mars" "mips")
+ (require "arch/mars_mips.lisp"))
 
 (require "lib/str.lisp")
 
@@ -15,10 +15,10 @@
 (define io.print (str)
  (declare)
  (block
-  (*if (platform? "linux_x86")
+  (*if (platform? "linux" "*")
    (linux.write 1 str (str.len str)))
 
-  (*if (platform? "mars")
+  (*if (platform? "mars" "mips")
    (mars.print-string str))))
 
 (define io.println (str)
@@ -28,7 +28,7 @@
   (io.print str)
   (io.print newline)))
 
-(*if (platform? "linux_x86")
+(*if (platform? "linux" "*")
  (define io.read-int ()
   (declare
    (buffsz integer)
@@ -38,7 +38,7 @@
    (linux.read 0 buffer buffsz)
    (return (str.str->int buffer)))))
 
-(*if (platform? "mars")
+(*if (platform? "mars" "mips")
  (define io.read-int ()
   (declare)
   (block

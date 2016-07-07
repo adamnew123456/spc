@@ -1,28 +1,28 @@
 clean:
 	rm -rf build
 
-## mars TARGET ##
+## mars_mips TARGET ##
 
-mars_STDLIB := build/mars/str.asm build/mars/io.asm build/mars/assert.asm
+mars_mips_STDLIB := build/mars_mips/str.asm build/mars_mips/io.asm build/mars_mips/assert.asm
 
-build/.mars:
-	mkdir -p build/mars
-	touch build/.mars
+build/.mars_mips:
+	mkdir -p build/mars_mips
+	touch build/.mars_mips
 
-build/mars/assert.asm: build/.mars lib/assert.lisp
-	python3 compile.py -l -b mars -o build/mars/assert.asm lib/assert.lisp
+build/mars_mips/assert.asm: build/.mars_mips lib/assert.lisp
+	python3 compile.py -l -b mars_mips -o build/mars_mips/assert.asm lib/assert.lisp
 
-build/mars/io.asm: build/.mars lib/io.lisp
-	python3 compile.py -l -b mars -o build/mars/io.asm lib/io.lisp
+build/mars_mips/io.asm: build/.mars_mips lib/io.lisp
+	python3 compile.py -l -b mars_mips -o build/mars_mips/io.asm lib/io.lisp
 
-build/mars/str.asm: build/.mars lib/str.lisp
-	python3 compile.py -l -b mars -o build/mars/str.asm lib/str.lisp
+build/mars_mips/str.asm: build/.mars_mips lib/str.lisp
+	python3 compile.py -l -b mars_mips -o build/mars_mips/str.asm lib/str.lisp
 
-build/mars/mars.asm: build/.mars arch/mars.lisp
-	python3 compile.py -l -b mars -o build/mars/mars.asm arch/mars.lisp
+build/mars_mips/mars_mips.asm: build/.mars_mips arch/mars_mips.lisp
+	python3 compile.py -l -b mars_mips -o build/mars_mips/mars_mips.asm arch/mars_mips.lisp
 
-build/mars/%.asm: samples/mars/%.lisp ${mars_STDLIB} build/mars/mars.asm
-	python3 compile.py -b mars -o $@ $<
+build/mars_mips/%.asm: samples/mars_mips/%.lisp ${mars_mips_STDLIB} build/mars_mips/mars_mips.asm
+	python3 compile.py -b mars_mips -o $@ $<
 
 ## linux_x86 TARGET ##
 

@@ -55,16 +55,19 @@
 ;;
 ;;    STRING - Always true
 ;;    INTEGER - True when the value is != 0
-;;    (platform? STRING) - True when the backend's name is the same as the given string
+;;    (platform? STRING STRING) - True when the backend's OS and platform are 
+;;        the same as the given strings. Note that either may be the wildcard "*"
+;;    (var-def? IDENTIFIER) - True when the given variable is in scope, False otherwise.
+;;    (type-def? IDENTIFIER) - True when the given type is in scope, False otherwise.
 ;;
 ;; In conjunction with *if, *error allows users to raise compile-time errors from within
 ;; their own code:
 ;;
 ;;    (*error STRING)
 
-(*if (platform? "mars")
- (require "arch/mars.lisp")
- (*error "Sample must be compiled with 'mars' backend"))
+(*if (platform? "mars" "mips")
+ (require "arch/mars_mips.lisp")
+ (*error "Sample must be compiled with 'mars_mips' backend"))
 
 (declare
  (linked-ints

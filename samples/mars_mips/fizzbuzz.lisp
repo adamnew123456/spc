@@ -1,4 +1,5 @@
 (require "lib/io.lisp")
+(require "lib/str.lisp")
 (declare
   (newline (ascii "\n"))
   (fizz (ascii "Fizz"))
@@ -7,7 +8,7 @@
 
 (define main ()
   (declare
-    (str.intbuff (ascii "   "))
+    (intbuff (ascii "   "))
     (i integer)
     (even3 integer)
     (even5 integer))
