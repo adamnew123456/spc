@@ -9,14 +9,14 @@
 (define is-linux ()
  (declare)
  (block
-  (*if (platform? "linux_x86")
+  (*if (platform? "linux" "*")
    (return 1)
    (return 0))))
 
 (define is-mars ()
  (declare)
  (block
-  (*if (platform? "mars")
+  (*if (platform? "mars" "mips")
    (return 1)
    (return 0))))
 
