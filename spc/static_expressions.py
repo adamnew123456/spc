@@ -49,7 +49,7 @@ def func_platform(context, name_token, args):
 
 def is_var_defined(context, name_token, args):
     """
-    Evaluates (var-def? STRING)
+    Evaluates (var-def? IDENTIFIER)
 
     Returns True if the variable is defined in the current scope, False 
     otherwise.
@@ -58,16 +58,16 @@ def is_var_defined(context, name_token, args):
         raise CompilerError.from_token(name_token,
             'Variable definition test must be of the form (var-def? STRING)')
 
-    if not lexer.is_string(args[0]):
+    if not lexer.is_identifier(args[0]):
         raise CompilerError.from_token(name_token,
             'Variable definition test must be of the form (var-def? STRING)')
 
-    name = args[0].content.decode('ascii')
+    name = args[0].content
     return context.backend._value_is_defined(name)
 
 def is_type_defined(context, name_token, args):
     """
-    Evaluates (type-def? STRING)
+    Evaluates (type-def? IDENTIFIER)
 
     Returns True if the type is defined in the current scope, False 
     otherwise.
@@ -76,11 +76,11 @@ def is_type_defined(context, name_token, args):
         raise CompilerError.from_token(name_token,
             'Variable definition test must be of the form (var-def? STRING)')
 
-    if not lexer.is_string(args[0]):
+    if not lexer.is_identifier(args[0]):
         raise CompilerError.from_token(name_token,
             'Variable definition test must be of the form (var-def? STRING)')
 
-    name = args[0].content.decode('ascii')
+    name = args[0].content
     return context.backend._type_is_defined(name)
 
 def evaluate(context, expression):
