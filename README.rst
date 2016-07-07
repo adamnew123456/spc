@@ -93,3 +93,12 @@ In no particular order, things that writing this helped me understand.
   and you have the way that C works. After I realized the unity of *ref* loads,
   I got rid of the separate assignment statements in favor of the unified
   assignment the compiler (and the C language) uses today.
+
+- *Static If.* Having code that was backend independent was not possible for a
+  good while, because of the lack of conditional compilation - this is because
+  it was not possible to do conditional compilation based upon the backend in
+  use. Rather than doing a separate macro system (like cpp) which was much more
+  powerful a feature than simple conditional compilation warrants, I opted to 
+  try doing static if, which I had been looking into at the time. The first 
+  condition supported was *platform?*, which was sufficient to pull out a 
+  small standard library and merge almost all the samples from both backends.
