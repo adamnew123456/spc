@@ -12,7 +12,7 @@ from . import types
 
 # Since a file isn't going to change in the middle of our run, there's no
 # point in processing it more than once
-IMPORT_CACHE = set()
+IMPORT_CACHE = {}
 
 class RequireProcessor(EmptyBackend):
     """
@@ -26,10 +26,13 @@ class RequireProcessor(EmptyBackend):
         or None if this import has already been processed.
         """
         abs_filename = os.path.abspath(filename)
-        if filename in IMPORT_CACHE:
-            return None
+        if abs_filename in IMPORT_CACHE:
+            return IMPORT_CACHE[abs_filename]
 
-        IMPORT_CACHE.add(abs_filename)
+        # This has to be set to None, so that circular imports are avoided. They
+        # shouldn't happen anyway, but this makes for an easy additional level
+        # of safety
+        IMPORT_CACHE[abs_filename] = None
         with open(filename) as require_stream:
             req_processor = RequireProcessor(filename, backend)
             lex = Lexer(require_stream, filename)
@@ -37,6 +40,7 @@ class RequireProcessor(EmptyBackend):
 
             drv.compile()
 
+            IMPORT_CACHE[abs_filename] = req_processor
             return req_processor
 
     def __init__(self, filename, real_backend):
