@@ -44,6 +44,8 @@ class RequireProcessor(EmptyBackend):
             return req_processor
 
     def __init__(self, filename, real_backend):
+        self.real_backend = real_backend
+
         # This essentially 'shadows' types like 'string', which aren't really
         # exported, but should be available to required modules
         primitive_types = SymbolTable()
@@ -70,11 +72,6 @@ class RequireProcessor(EmptyBackend):
         self.line = 0
         self.col = 0
 
-        # Anything copied from the real backend is generally necessary for
-        # static conditionals
-        self.real_backend = real_backend
-        self.platform_name = real_backend.platform_name
-
     def _value_is_defined(self, name):
         """
         Returns True if the given variable is defined in the current scope, or
@@ -92,6 +89,12 @@ class RequireProcessor(EmptyBackend):
         This is for the static expression processor function, var-def?
         """
         return name in self.exported_types
+
+    def _platform(self):
+        """
+        Returns the (OS, architecture) pair of the underlying backend.
+        """
+        return self.real_backend._platform()
 
     def update_position(self, line, col):
         """

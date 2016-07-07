@@ -16,21 +16,36 @@ class StaticContext:
 
 def func_platform(context, name_token, args):
     """
-    Evaluates (platform? STRING)
+    Evaluates (platform? STRING STRING)
 
-    Returns True if the backend's platform_name is the same as the given
-    string, and False otherwise.
+    Returns True if the backend's OS and architecture match the given pattern,
+    or False otherwise (OS is argument 1, architecture is argument 2)
+
+    Note that either may be the wildcard '*' to match over any value.
     """
-    if len(args) != 1:
+    if len(args) != 2:
         raise CompilerError.from_token(name_token,
-            'Platform test must be of the form (platform? STRING)')
+            'Platform test must be of the form (platform? STRING STRING)')
 
     if not lexer.is_string(args[0]):
         raise CompilerError.from_token(name_token,
-            'Platform test must be of the form (platform? STRING)')
+            'Platform test must be of the form (platform? STRING STRING)')
 
-    platform = args[0].content.decode('ascii')
-    return platform == context.backend.platform_name
+    if not lexer.is_string(args[1]):
+        raise CompilerError.from_token(name_token,
+            'Platform test must be of the form (platform? STRING STRING)')
+
+    os = args[0].content.decode('ascii')
+    arch = args[1].content.decode('ascii')
+
+    real_os, real_arch = context.backend._platform()
+    if os != real_os and os != '*':
+        return False
+
+    if arch != real_arch and arch != '*':
+        return False
+
+    return True
 
 def is_var_defined(context, name_token, args):
     """

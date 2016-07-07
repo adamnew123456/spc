@@ -36,12 +36,17 @@ class Common32Backend(ContextMixin, ThirtyTwoMixin, BaseBackend):
         self.exported = set()
         self.undefined_funcs = set()
         self.comment_fmt = templates.comment_fmt
-        self.platform_name = templates.platform_name
         self.label_maker = make_label_maker()
 
         # It's important for the templates to get to the backend, so they can
         # actually spit out code
         self.templates.backend = self
+
+    def _platform(self):
+        """
+        Returns the (OS, architecture) pair of the template.
+        """
+        return self.templates.platform_os, self.templates.platform_arch
 
     def _make_func_stack(self):
         return self.templates.make_func_stack()

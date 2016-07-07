@@ -13,6 +13,12 @@ class EmptyBackend:
     Note that all identifiers (var. names, field names, etc.) are given as
     strings, not full tokens.
     """
+    def _platform(self):
+        """
+        Returns a 2-tuple - the first value is the OS, and the second value is
+        the architecture.
+        """
+
     def update_position(self, line, col):
         """
         Gives the position of the driver, before any method is called.
@@ -173,7 +179,6 @@ class BaseBackend:
     """
     # Override this with the appropriate for of comment for the backend
     comment_fmt = '# {}'
-    platform_name = None
 
     def __init__(self, output, filename, is_library, 
                 builtin_functions, builtin_types):

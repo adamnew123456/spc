@@ -50,7 +50,8 @@ class LinuxX86Templates:
     return_reg = '%eax'
     tmp_regs = ['%eax', '%edx']
 
-    platform_name = 'linux_x86'
+    platform_os = 'linux'
+    platform_arch = 'x86'
     comment_fmt = '/* {} */'
 
     def __init__(self):
