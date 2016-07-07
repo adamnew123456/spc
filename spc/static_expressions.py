@@ -15,7 +15,12 @@ class StaticContext:
         self.backend = backend
 
 def func_platform(context, name_token, args):
-    'Evaluates (platform? STRING)'
+    """
+    Evaluates (platform? STRING)
+
+    Returns True if the backend's platform_name is the same as the given
+    string, and False otherwise.
+    """
     if len(args) != 1:
         raise CompilerError.from_token(name_token,
             'Platform test must be of the form (platform? STRING)')
@@ -24,7 +29,44 @@ def func_platform(context, name_token, args):
         raise CompilerError.from_token(name_token,
             'Platform test must be of the form (platform? STRING)')
 
-    return args[0].content.decode('ascii') == context.backend.platform_name
+    platform = args[0].content.decode('ascii')
+    return platform == context.backend.platform_name
+
+def is_var_defined(context, name_token, args):
+    """
+    Evaluates (var-def? STRING)
+
+    Returns True if the variable is defined in the current scope, False 
+    otherwise.
+    """
+    if len(args) != 1:
+        raise CompilerError.from_token(name_token,
+            'Variable definition test must be of the form (var-def? STRING)')
+
+    if not lexer.is_string(args[0]):
+        raise CompilerError.from_token(name_token,
+            'Variable definition test must be of the form (var-def? STRING)')
+
+    name = args[0].content.decode('ascii')
+    return context.backend._value_is_defined(name)
+
+def is_type_defined(context, name_token, args):
+    """
+    Evaluates (type-def? STRING)
+
+    Returns True if the type is defined in the current scope, False 
+    otherwise.
+    """
+    if len(args) != 1:
+        raise CompilerError.from_token(name_token,
+            'Variable definition test must be of the form (var-def? STRING)')
+
+    if not lexer.is_string(args[0]):
+        raise CompilerError.from_token(name_token,
+            'Variable definition test must be of the form (var-def? STRING)')
+
+    name = args[0].content.decode('ascii')
+    return context.backend._type_is_defined(name)
 
 def evaluate(context, expression):
     """
@@ -37,7 +79,9 @@ def evaluate(context, expression):
     Note that this doesn't handle nested function calls.
     """
     functions = {
-        'platform?': func_platform
+        'platform?': func_platform,
+        'var-def?': is_var_defined,
+        'type-def?': is_type_defined,
     }
 
     if lexer.is_identifier(expression):

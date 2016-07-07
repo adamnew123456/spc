@@ -201,6 +201,24 @@ class ContextMixin:
         self.current_context = Context(self.def_vals, self.def_types, 
             SymbolTable(), None)
 
+    def _value_is_defined(self, name):
+        """
+        Returns True if the given variable is defined in the current scope, or
+        False otherwise.
+
+        This is for the static expression processor function, var-def?
+        """
+        return name in self.current_context.value_defns
+
+    def _type_is_defined(self, name):
+        """
+        Returns True if the given type is defined in the current scope, or
+        False otherwise.
+
+        This is for the static expression processor function, var-def?
+        """
+        return name in self.current_context.type_defns
+
     def _make_func_stack(self):
         raise NotImplementedError
 

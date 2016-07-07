@@ -75,6 +75,24 @@ class RequireProcessor(EmptyBackend):
         self.real_backend = real_backend
         self.platform_name = real_backend.platform_name
 
+    def _value_is_defined(self, name):
+        """
+        Returns True if the given variable is defined in the current scope, or
+        False otherwise.
+
+        This is for the static expression processor function, var-def?
+        """
+        return name in self.exported_values
+
+    def _type_is_defined(self, name):
+        """
+        Returns True if the given type is defined in the current scope, or
+        False otherwise.
+
+        This is for the static expression processor function, var-def?
+        """
+        return name in self.exported_types
+
     def update_position(self, line, col):
         """
         Updates the processor with the current location in the input file.
