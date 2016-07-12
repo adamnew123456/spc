@@ -3,7 +3,7 @@
  (linux.read (function integer integer string integer))
  (linux.write (function integer integer string integer)))
 
-(export linux.exit linux.read linux.write)
+(export 'linux.exit 'linux.read 'linux.write)
 
 (assemble linux.exit
  "movl $1, %eax

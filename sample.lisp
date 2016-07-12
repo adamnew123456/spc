@@ -42,7 +42,8 @@
 ;; There are two ways to interface with other files - export and require
 ;;  - (require STRING) reads in another file, and loads the definitions that the other
 ;;    file exports
-;;  - (export N*) declares that the names N are available to other files
+;;  - (export N*) declares that the names N are available to other files. They must be
+;;    prefixed with either ' (representing values) or * (representing types)
 ;;
 ;; Finally, spc supports a kind of static metaprogramming - static if, written *if. It
 ;; is used to conditionally compile code:
@@ -88,7 +89,7 @@
  (main
   (function integer)))
 
-(export cons-linked-ints sum-linked-ints)
+(export *linked-ints *linked-ints-ptr 'cons-linked-ints 'sum-linked-ints)
 
 ;; Function definitions are different from C in four ways:
 ;;

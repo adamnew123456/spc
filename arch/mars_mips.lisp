@@ -6,9 +6,9 @@
  (mars.sbrk (function (pointer-to byte) integer))
  (mars.exit (function byte)))
 
-(export mars.print-int mars.print-string
-        mars.read-int mars.read-string
-        mars.sbrk mars.exit)
+(export 'mars.print-int 'mars.print-string
+        'mars.read-int 'mars.read-string
+        'mars.sbrk 'mars.exit)
 
 (assemble mars.print-int
  "lw $a0, 0($sp)

@@ -4,7 +4,7 @@
  (str.int->str (function byte integer string))
  (str.str->int (function integer string)))
 
-(export str.rev str.len str.int->str str.str->int)
+(export 'str.rev 'str.len 'str.int->str 'str.str->int)
     
 ;; Computes the length of the given string
 (define str.len (str)

@@ -205,16 +205,16 @@ class Common32Backend(ContextMixin, ThirtyTwoMixin, BaseBackend):
             if processor is None:
                 return
 
-            for type_name, type_obj in processor.exported_types.shallow_iter():
+            for type_name, type_obj in processor.exported_types.items():
                 self._write_comment('Importing definition: {} of type {}', type_name, type_obj)
                 self.current_context.type_defns[type_name] = type_obj
 
-            for val_name, val_obj in processor.exported_values.shallow_iter():
+            for val_name, val_obj in processor.exported_values.items():
                 self._write_comment('Importing value: {} of type {}', val_name, val_obj)
                 self.current_context.value_defns[val_name] = val_obj
                 self.exported.add(val_name)
 
-            for arr_name, arr_obj in processor.exported_arrays.shallow_iter():
+            for arr_name, arr_obj in processor.exported_arrays.items():
                 self.current_context.array_bound[arr_name] = True
         except OSError:
             self.error(self.line, self.col,
@@ -235,6 +235,17 @@ class Common32Backend(ContextMixin, ThirtyTwoMixin, BaseBackend):
                 'Cannot import values inside of function')
 
         for name in names:
+            if name[0] not in "'*":
+                self.error(self.line, self.col,
+                    "Export must begin with either ' or *")
+
+            # Types don't actually exist for the assembler, so no code has to e
+            # generated for them
+            if name[0] != "'":
+                continue
+
+
+            name = name[1:]
             if name in self.exported:
                 self.error(self.line, self.col,
                     'Cannot re-export foreign value "{}"', name)

@@ -45,6 +45,7 @@ class RequireProcessor(EmptyBackend):
 
     def __init__(self, filename, real_backend):
         self.real_backend = real_backend
+        self.in_function = False
 
         # This essentially 'shadows' types like 'string', which aren't really
         # exported, but should be available to required modules
@@ -59,12 +60,9 @@ class RequireProcessor(EmptyBackend):
         self.internal_values = SymbolTable()
         self.internal_arrays = SymbolTable()
 
-        self.exported_types = SymbolTable(self.internal_types)
-        self.exported_values = SymbolTable(self.internal_values)
-        self.exported_arrays = SymbolTable(self.internal_values)
-
-        self.all_values = {}
-        self.all_arrays = {}
+        self.exported_types = {}
+        self.exported_values = {}
+        self.exported_arrays = {}
 
         self.import_list = set()
 
@@ -122,6 +120,19 @@ class RequireProcessor(EmptyBackend):
         """
         self.real_backend._write_comment(comment, *args, **kwargs)
 
+    def handle_func_def_start(self, *_):
+        """
+        Ignore any definitions restricted to functions.
+        """
+        self.in_function = True
+
+    def handle_func_def_end(self):
+        """
+        Stop ignoring the next declaration block.
+        """
+        self.in_function = False
+
+
     def handle_require(self, filename):
         """
         This invokes itself recursively, as long as the require would not be
@@ -138,13 +149,13 @@ class RequireProcessor(EmptyBackend):
             if req_processor is None:
                 return
 
-            for type_name, type_obj in req_processor.exported_types.shallow_iter():
+            for type_name, type_obj in req_processor.exported_types.items():
                 self.internal_types[type_name] = type_obj
 
-            for val_name, val_obj in req_processor.exported_values.shallow_iter():
+            for val_name, val_obj in req_processor.exported_values.items():
                 self.internal_values[val_name] = val_obj
 
-            for arr_name, arr_flag in req_processor.exported_arrays.shallow_iter():
+            for arr_name, arr_flag in req_processor.exported_arrays.items():
                 self.internal_arrays[arr_name] = arr_flag
         except OSError:
             raise CompilerError(self.filename, self.line, self.col,
@@ -154,28 +165,27 @@ class RequireProcessor(EmptyBackend):
         """
         Records the declaration in the external store.
         """
+        if self.in_function:
+            return
+
         was_type_name = isinstance(decl_type, types.TypeName)
-        decl_type = types.resolve_name(decl_type, self.exported_types)
+        decl_type = types.resolve_name(decl_type, self.internal_types)
 
         if isinstance(decl_type, types.StringLiteral):
-            self.all_values[name] = types.PointerTo(types.Byte)
-            self.all_arrays[name] = True
+            self.internal_values[name] = types.PointerTo(types.Byte)
+            self.internal_arrays[name] = True
         elif was_type_name or isinstance(decl_type, types.RAW_TYPES):
             was_array = isinstance(decl_type, types.ArrayOf)
-            self.all_values[name] = types.decay_if_array(decl_type)
+            self.internal_values[name] = types.decay_if_array(decl_type)
 
             if was_array:
-                self.all_arrays[name] = True
+                self.internal_arrays[name] = True
         elif isinstance(decl_type, types.Struct):
-            # NOTE: This is a hack around the fact that (export ...) does not
-            # actually accept types -  just export all the types that we
-            # come across
-            self.exported_types[name] = decl_type
+            self.internal_types[name] = decl_type
         elif isinstance(decl_type, types.FunctionDecl):
-            self.all_values[name] = decl_type
+            self.internal_values[name] = decl_type
         elif isinstance(decl_type, types.AliasDef):
-            # See above comment
-            self.exported_types[name] = decl_type
+            self.internal_types[name] = decl_type 
 
     def handle_exports(self, names):
         """
@@ -183,13 +193,27 @@ class RequireProcessor(EmptyBackend):
         visible to the main backend.
         """
         for name in names:
-            try:
-                type_obj = self.all_values[name]
-            except KeyError:
-                raise CompilerError(self.filename, self.line, self.col,
-                    'Cannot export undefined value "{}"')
+            if name[0] == "'":
+                name = name[1:]
+                try:
+                    type_obj = self.internal_values[name]
+                except KeyError:
+                    raise CompilerError(self.filename, self.line, self.col,
+                        'Cannot export undefined value "{}"')
 
-            self.exported_values[name] = type_obj
-            
-            if name in self.all_arrays:
-                self.exported_arrays[name] = True
+                self.exported_values[name] = type_obj
+                
+                if name in self.internal_arrays:
+                    self.exported_arrays[name] = True
+            elif name[0] == '*':
+                name = name[1:]
+                try:
+                    type_decl = self.internal_types[name]
+                except KeyError:
+                    raise CompilerError(self.filename, self.line, self.col,
+                        'Cannot export undefined type "{}"', name)
+
+                self.exported_types[name] = type_obj
+            else:
+                raise CompilerError(self.filename, self.line, self.col,
+                    "Exported name must be prefixed with ' or *")

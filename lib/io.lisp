@@ -10,7 +10,7 @@
  (io.println (function byte string))
  (io.read-int (function integer)))
 
-(export io.print io.println io.read-int)
+(export 'io.print 'io.println 'io.read-int)
 
 (define io.print (str)
  (declare)

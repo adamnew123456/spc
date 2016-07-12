@@ -2,7 +2,7 @@
 (declare
   (assert (function byte integer string)))
 
-(export assert)
+(export 'assert)
 
 (define assert (cond msg)
  (declare)
