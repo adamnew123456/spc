@@ -74,11 +74,11 @@ def is_type_defined(context, name_token, args):
     """
     if len(args) != 1:
         raise CompilerError.from_token(name_token,
-            'Variable definition test must be of the form (var-def? STRING)')
+            'Type definition test must be of the form (type-def? STRING)')
 
     if not lexer.is_identifier(args[0]):
         raise CompilerError.from_token(name_token,
-            'Variable definition test must be of the form (var-def? STRING)')
+            'Type definition test must be of the form (type-def? STRING)')
 
     name = args[0].content
     return context.backend._type_is_defined(name)
