@@ -30,9 +30,7 @@ types and functions, notes about the restrictions which make the compiler somewh
 easier to implement. As a bonus, it actually serves as a runnable example which
 computes the sum of the numbers entered::
 
-    $ mkdir -p build/mars_mips
-    $ python3 compile.py -l -b mars_mips -o build/mars_mips/mars_mips.asm arch/mars_mips.lisp
-    $ python3 compile.py -b mars_mips -o build/mars_mips/sample.asm sample.lisp
+    $ python3 build.py sample.lisp
     $ cd build/mars_mips
     $ java -jar Mars.jar nc p sample.asm
     5
@@ -44,17 +42,16 @@ computes the sum of the numbers entered::
 Compiling Things
 ================
 
-Run ``python3 compiler.py -h`` to see the compiler's help. Currently, there
+Run ``python3 build.py`` to see the compiler's help. Currently, there
 two backends:
 
 - ``mars_mips``, for the MARS educational MIPS simulator.
 - ``linux_x86``, for Linux running on 32-bit Intel processors. This has been
   tested with the GNU ``as`` assembler and the GNU ``ld`` linker.
 
-All the samples that come with the compiler can be compiled via the Makefile.
-GNU Make (or a make with basic pattern rules support) is required::
+All the samples that come with the compiler can be compiled via ``build.py``:
 
-    $ make build/mars_mips/fizzbuzz.asm
+    $ python3 build.py mars_mips fizzbuzz.lisp
     $ cd build/mars_mips
     $ java -jar Mars.jar nc p fizzbuzz.asm
     1
@@ -64,7 +61,7 @@ GNU Make (or a make with basic pattern rules support) is required::
     Buzz
     ...
 
-    $ make build/linux_x86/fizzbuzz.asm
+    $ python3 build.py linux_x86 fizzbuzz.lisp
     $ cd build/linux_x86
     $ as linux_x86.asm -o linux_x86.o
     $ as fizzbuzz.asm -o fizzbuzz.o

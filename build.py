@@ -257,10 +257,29 @@ def main(platform, filename):
         link_files(linker, inputs, main_bin)
 
 if __name__ == '__main__':
+    # Add special support for the demo script
+    try:
+        if sys.argv[1] == 'sample.lisp':
+            os.makedirs(BUILD_DIRS['mars_mips'], exist_ok=True)
+
+            compile_file('mars_mips', 
+                    BUILD_ROOT + 'sample.lisp',
+                    source_file_to_asm_file('mars_mips', 'sample.lisp'))
+
+            compile_file('mars_mips',
+                    ARCH_LIBS['mars_mips'],
+                    source_file_to_asm_file('mars_mips', ARCH_LIBS['mars_mips']),
+                    library=True)
+
+            sys.exit(0)
+    except BuildFailure:
+        sys.exit(1)
+
     try:
         _, platform, filename = sys.argv
     except ValueError:
         print('build.py <PLATFORM> <FILENAME>', file=sys.stderr)
+        print('build.py sample.lisp')
         sys.exit(1)
 
     try:
