@@ -53,6 +53,7 @@ TARGETS = {
             BUILD_ROOT + 'lib/assert.lisp', 
             BUILD_ROOT + 'lib/io.lisp',
             BUILD_ROOT + 'lib/str.lisp'],
+        'coercion.lisp': [],
         'cond.lisp': [
             BUILD_ROOT + 'lib/assert.lisp', 
             BUILD_ROOT + 'lib/io.lisp',
@@ -108,6 +109,7 @@ TARGETS = {
             BUILD_ROOT + 'lib/assert.lisp', 
             BUILD_ROOT + 'lib/io.lisp',
             BUILD_ROOT + 'lib/str.lisp'],
+        'coercion.lisp': [],
         'cond.lisp': [
             BUILD_ROOT + 'lib/assert.lisp', 
             BUILD_ROOT + 'lib/io.lisp',
