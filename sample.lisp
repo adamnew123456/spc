@@ -194,7 +194,7 @@
   (newline (array-of byte 2)))
 
  (block
-  (set list (int-to-ptr linked-ints-ptr 0))
+  (set list (int-to-ptr 0 linked-ints-ptr))
   (set read-value 1)
   
   (set (array newline 0) (int-to-byte 10))
