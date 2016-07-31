@@ -120,6 +120,10 @@
  ;;
  ;; Truncate/expand bytes <-> integers:
  ;;  (byte-to-int E) and (int-to-byte E)
+ ;; 
+ ;; However, note that integers are automatically downcast, and bytes
+ ;; automatically upcast, when a value of one type or the other is needed.
+ ;; Thus, these functions generally do not need to be used.
  (block
   (set list (cast linked-ints-ptr (mars.sbrk (size-of linked-ints))))
   (set (field (deref list) value) head)
@@ -194,11 +198,11 @@
   (newline (array-of byte 2)))
 
  (block
-  (set list (int-to-ptr linked-ints-ptr 0))
+  (set list (int-to-ptr 0 linked-ints-ptr))
   (set read-value 1)
   
-  (set (array newline 0) (int-to-byte 10))
-  (set (array newline 1) (int-to-byte 0))
+  (set (array newline 0) 10)
+  (set (array newline 1) 0)
 
   (while (!= read-value 0)
    (block
