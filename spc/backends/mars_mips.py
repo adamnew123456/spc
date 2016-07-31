@@ -232,7 +232,7 @@ class MarsTemplates:
         self._write_instr('    slav {0}, {0}, {1}', dest_reg, rhs_reg)
 
     def emit_bit_not(self, reg):
-        self._write_instr('    not {}', reg)
+        self._write_instr('    not {}, {}', reg, reg)
 
     def emit_branch_if_zero(self, reg, label):
         self._write_instr('    beq {}, $0, {}', reg, label)
