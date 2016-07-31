@@ -49,6 +49,75 @@ class SwitchLabels:
         self.end_label = end_label
         self.case_end_label = None
 
+class CoercionContext:
+    """
+    This is used to wrap up all the information needed to coerce values from 
+    one type to another.
+    """
+    def __init__(self, backend, temp_context, code_templates):
+        self.backend = backend
+        self.temp_context = temp_context
+        self.templates = code_templates
+
+    def copy_with_context(self, new_context):
+        """
+        Creates a copy of this object, but within a new temporary context.
+        """
+        return CoercionContext(self.backend, new_context, self.templates)
+
+    def coerce(self, input_offset, input_type, output_type):
+        """
+        Coerces a value, located on the stack, from the given input type to the
+        given output type. Returns the stack offset of the converted
+        variable and the output type.
+
+        Raises a TypeError if this is not possible.
+        """
+        if input_type == output_type:
+            return input_offset, output_type
+        elif (input_type, output_type) == (types.Integer, types.Byte):
+            return self._coerce_int_to_byte(input_offset), output_type
+        elif (input_type, output_type) == (types.Byte, types.Integer):
+            return self._coerce_byte_to_int(input_offset), output_type
+        else:
+            raise TypeError('Cannot coerce {} -> {}'.format(input_type, output_type))
+
+    def _coerce_int_to_byte(self, input_offset):
+        """
+        Coerces an integer to a byte, returning the stack offset of the
+        resulting byte.
+        """
+        byte_size = self.backend._type_size(types.Byte)
+        byte_align = self.backend._type_alignment(types.Byte)
+        dest_offset = self.temp_context.add_temp(byte_size, byte_align)
+        tmp_reg = self.templates.tmp_regs[0]
+
+        self.backend._write_comment('Coercing int@{} to byte@{}', 
+                input_offset, dest_offset)
+
+        self.templates.emit_load_stack_word(tmp_reg, input_offset)
+        self.templates.emit_int_to_byte(tmp_reg)
+        self.templates.emit_save_stack_byte(tmp_reg, dest_offset)
+        return dest_offset
+
+    def _coerce_byte_to_int(self, input_offset):
+        """
+        Coerces a byte to an integer, returning the stack offset of the
+        resulting integer.
+        """
+        int_size = self.backend._type_size(types.Integer)
+        int_align = self.backend._type_alignment(types.Integer)
+        dest_offset = self.temp_context.add_temp(int_size, int_align)
+        tmp_reg = self.templates.tmp_regs[0]
+
+        self.backend._write_comment('Coercing byte@{} to int@{}', 
+                input_offset, dest_offset)
+
+        self.templates.emit_load_stack_byte(tmp_reg, input_offset)
+        self.templates.emit_byte_to_int(tmp_reg)
+        self.templates.emit_save_stack_word(tmp_reg, dest_offset)
+        return dest_offset
+
 class FunctionStack:
     """
     Tracks where variables are on the function's stack.
