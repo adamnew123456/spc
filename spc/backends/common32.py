@@ -598,7 +598,7 @@ class Common32Backend(ContextMixin, ThirtyTwoMixin, BaseBackend):
 
             expr_dest, expr_type = self._compile_expression(expr.expr, temp_context)
             
-            if _expr_type is not types.Byte:
+            if expr_type is not types.Byte:
                 self.error(*expr.loc, '(byte-to-int x) requires x to be an byte')
 
             return coercer.coerce(_expr_dest, types.Byte, types.Integer)
