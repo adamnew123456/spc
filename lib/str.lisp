@@ -12,7 +12,7 @@
    (i integer))
   (block
    (set i 0)
-   (while (!= 0 (byte-to-int (array str i)))
+   (while (!= 0 (array str i))
     (set i (+ i 1)))
 
    (return i)))
@@ -45,18 +45,18 @@
   (if (== x 0)
    ;; Trivial case - for 0, just put a 0 and close the buffer
    (block
-    (set (array buffer 0) (int-to-byte 48))
-    (set (array buffer 1) (int-to-byte 0)))
+    (set (array buffer 0) 48)
+    (set (array buffer 1) 0))
    
    (block
     (set index 0)
     (while (> x 0)
      (block
-      (set (array buffer index) (int-to-byte (+ (% x 10) 48)))
+      (set (array buffer index) (+ (% x 10) 48))
       (set index (+ index 1))
       (set x (/ x 10))))
 
-    (set (array buffer index) (int-to-byte 0))
+    (set (array buffer index) 0)
     (str.rev buffer)))))
 
 (define str.str->int (buffer)
@@ -68,12 +68,12 @@
   (set index buffer)
   (set accum 0)
 
-  (while (&& (>= (byte-to-int (deref index)) 48)
-             (<= (byte-to-int (deref index)) 57))
+  (while (&& (>= (deref index) 48)
+             (<= (deref index) 57))
    (block
     (set accum (* accum 10))
     (set accum 
-     (+ accum (- (byte-to-int (deref index)) 48)))
+     (+ accum (- (deref index) 48)))
 
     (set index (+ index 1))))
 
