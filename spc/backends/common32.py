@@ -596,9 +596,9 @@ class Common32Backend(ContextMixin, ThirtyTwoMixin, BaseBackend):
             if by_ref:
                 self.error(*expr.loc, '(byte-to-int x) is not valid in a ref context')
 
-            expr_dest, expr_type = self._compile_expression(expr.expr, temp_context)
+            _expr_dest, _expr_type = self._compile_expression(expr.expr, temp_context)
             
-            if expr_type is not types.Byte:
+            if _expr_type is not types.Byte:
                 self.error(*expr.loc, '(byte-to-int x) requires x to be an byte')
 
             return coercer.coerce(_expr_dest, types.Byte, types.Integer)
