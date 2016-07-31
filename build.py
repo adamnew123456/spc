@@ -43,16 +43,20 @@ TARGETS = {
     'linux_x86': {
         'arith.lisp': [
             BUILD_ROOT + 'lib/assert.lisp', 
-            BUILD_ROOT + 'lib/io.lisp'],
+            BUILD_ROOT + 'lib/io.lisp',
+            BUILD_ROOT + 'lib/str.lisp'],
         'cached-require.lisp': [
-            BUILD_ROOT + 'lib/assert.lisp',
-            BUILD_ROOT + 'lib/io.lisp'],
+            BUILD_ROOT + 'lib/assert.lisp', 
+            BUILD_ROOT + 'lib/io.lisp',
+            BUILD_ROOT + 'lib/str.lisp'],
         'cmp.lisp': [
-            BUILD_ROOT + 'lib/assert.lisp',
-            BUILD_ROOT + 'lib/io.lisp'],
+            BUILD_ROOT + 'lib/assert.lisp', 
+            BUILD_ROOT + 'lib/io.lisp',
+            BUILD_ROOT + 'lib/str.lisp'],
         'cond.lisp': [
-            BUILD_ROOT + 'lib/assert.lisp',
-            BUILD_ROOT + 'lib/io.lisp'],
+            BUILD_ROOT + 'lib/assert.lisp', 
+            BUILD_ROOT + 'lib/io.lisp',
+            BUILD_ROOT + 'lib/str.lisp'],
         'error.lisp': [],
         'fizzbuzz.lisp': [
             BUILD_ROOT + 'lib/str.lisp',
@@ -61,82 +65,106 @@ TARGETS = {
             BUILD_ROOT + 'lib/str.lisp',
             BUILD_ROOT + 'lib/io.lisp'],
         'hello-world.lisp': [
-            BUILD_ROOT + 'lib/io.lisp'],
+            BUILD_ROOT + 'lib/io.lisp',
+            BUILD_ROOT + 'lib/str.lisp'],
         'if.lisp': [
-            BUILD_ROOT + 'lib/assert.lisp',
-            BUILD_ROOT + 'lib/io.lisp'],
+            BUILD_ROOT + 'lib/assert.lisp', 
+            BUILD_ROOT + 'lib/io.lisp',
+            BUILD_ROOT + 'lib/str.lisp'],
         'not.lisp': [
-            BUILD_ROOT + 'lib/assert.lisp',
-            BUILD_ROOT + 'lib/io.lisp'],
+            BUILD_ROOT + 'lib/assert.lisp', 
+            BUILD_ROOT + 'lib/io.lisp',
+            BUILD_ROOT + 'lib/str.lisp'],
         'ptr-arith.lisp': [
-            BUILD_ROOT + 'lib/assert.lisp',
-            BUILD_ROOT + 'lib/io.lisp'],
+            BUILD_ROOT + 'lib/assert.lisp', 
+            BUILD_ROOT + 'lib/io.lisp',
+            BUILD_ROOT + 'lib/str.lisp'],
         'read.lisp': [
             BUILD_ROOT + 'lib/io.lisp'],
         'require-hiding.lisp': [
-            BUILD_ROOT + 'lib/assert.lisp',
-            BUILD_ROOT + 'lib/io.lisp'],
+            BUILD_ROOT + 'lib/assert.lisp', 
+            BUILD_ROOT + 'lib/io.lisp',
+            BUILD_ROOT + 'lib/str.lisp'],
         'static-if.lisp': [
-            BUILD_ROOT + 'lib/assert.lisp',
-            BUILD_ROOT + 'lib/io.lisp'],
+            BUILD_ROOT + 'lib/assert.lisp', 
+            BUILD_ROOT + 'lib/io.lisp',
+            BUILD_ROOT + 'lib/str.lisp'],
         'switch.lisp': [
-            BUILD_ROOT + 'lib/assert.lisp',
-            BUILD_ROOT + 'lib/io.lisp'],
+            BUILD_ROOT + 'lib/assert.lisp', 
+            BUILD_ROOT + 'lib/io.lisp',
+            BUILD_ROOT + 'lib/str.lisp'],
         'unaligned-args.lisp': []
     },
     'mars_mips': {
         'arith.lisp': [
-            BUILD_ROOT + 'lib/assert.lisp',
-            BUILD_ROOT + 'lib/io.lisp'],
+            BUILD_ROOT + 'lib/assert.lisp', 
+            BUILD_ROOT + 'lib/io.lisp',
+            BUILD_ROOT + 'lib/str.lisp'],
         'cached-require.lisp': [
-            BUILD_ROOT + 'lib/assert.lisp',
-            BUILD_ROOT + 'lib/io.lisp'],
+            BUILD_ROOT + 'lib/assert.lisp', 
+            BUILD_ROOT + 'lib/io.lisp',
+            BUILD_ROOT + 'lib/str.lisp'],
         'cmp.lisp': [
-            BUILD_ROOT + 'lib/assert.lisp',
-            BUILD_ROOT + 'lib/io.lisp'],
+            BUILD_ROOT + 'lib/assert.lisp', 
+            BUILD_ROOT + 'lib/io.lisp',
+            BUILD_ROOT + 'lib/str.lisp'],
         'cond.lisp': [
-            BUILD_ROOT + 'lib/assert.lisp',
-            BUILD_ROOT + 'lib/io.lisp'],
+            BUILD_ROOT + 'lib/assert.lisp', 
+            BUILD_ROOT + 'lib/io.lisp',
+            BUILD_ROOT + 'lib/str.lisp'],
         'error.lisp': [],
         'fizzbuzz.lisp': [
-            BUILD_ROOT + 'lib/assert.lisp',
-            BUILD_ROOT + 'lib/io.lisp'],
+            BUILD_ROOT + 'lib/assert.lisp', 
+            BUILD_ROOT + 'lib/io.lisp',
+            BUILD_ROOT + 'lib/str.lisp'],
         'func-ptr.lisp': [
-            BUILD_ROOT + 'lib/assert.lisp',
-            BUILD_ROOT + 'lib/io.lisp'],
+            BUILD_ROOT + 'lib/assert.lisp', 
+            BUILD_ROOT + 'lib/io.lisp',
+            BUILD_ROOT + 'lib/str.lisp'],
         'hanoi.lisp': [
-            BUILD_ROOT + 'lib/assert.lisp',
-            BUILD_ROOT + 'lib/io.lisp'],
+            BUILD_ROOT + 'lib/assert.lisp', 
+            BUILD_ROOT + 'lib/io.lisp',
+            BUILD_ROOT + 'lib/str.lisp'],
         'hello-global.lisp': [
-            BUILD_ROOT + 'lib/io.lisp'],
+            BUILD_ROOT + 'lib/io.lisp',
+            BUILD_ROOT + 'lib/str.lisp'],
         'hello-local.lisp': [
-            BUILD_ROOT + 'lib/io.lisp'],
+            BUILD_ROOT + 'lib/io.lisp',
+            BUILD_ROOT + 'lib/str.lisp'],
         'jagged-struct.lisp': [],
         'linked-ints.lisp': [
-            BUILD_ROOT + 'lib/assert.lisp',
-            BUILD_ROOT + 'lib/io.lisp'],
+            BUILD_ROOT + 'lib/assert.lisp', 
+            BUILD_ROOT + 'lib/io.lisp',
+            BUILD_ROOT + 'lib/str.lisp'],
         'many-param.lisp': [
-            BUILD_ROOT + 'lib/assert.lisp',
-            BUILD_ROOT + 'lib/io.lisp'],
+            BUILD_ROOT + 'lib/assert.lisp', 
+            BUILD_ROOT + 'lib/io.lisp',
+            BUILD_ROOT + 'lib/str.lisp'],
         'not.lisp': [
-            BUILD_ROOT + 'lib/assert.lisp',
-            BUILD_ROOT + 'lib/io.lisp'],
+            BUILD_ROOT + 'lib/assert.lisp', 
+            BUILD_ROOT + 'lib/io.lisp',
+            BUILD_ROOT + 'lib/str.lisp'],
         'pair-ints.lisp': [
-            BUILD_ROOT + 'lib/assert.lisp',
-            BUILD_ROOT + 'lib/io.lisp'],
+            BUILD_ROOT + 'lib/assert.lisp', 
+            BUILD_ROOT + 'lib/io.lisp',
+            BUILD_ROOT + 'lib/str.lisp'],
         'print-ascii.lisp': [],
         'ptr-arith.lisp': [
-            BUILD_ROOT + 'lib/assert.lisp',
-            BUILD_ROOT + 'lib/io.lisp'],
+            BUILD_ROOT + 'lib/assert.lisp', 
+            BUILD_ROOT + 'lib/io.lisp',
+            BUILD_ROOT + 'lib/str.lisp'],
         'require-hiding.lisp': [
-            BUILD_ROOT + 'lib/assert.lisp',
-            BUILD_ROOT + 'lib/io.lisp'],
+            BUILD_ROOT + 'lib/assert.lisp', 
+            BUILD_ROOT + 'lib/io.lisp',
+            BUILD_ROOT + 'lib/str.lisp'],
         'static-if.lisp': [
-            BUILD_ROOT + 'lib/assert.lisp',
-            BUILD_ROOT + 'lib/io.lisp'],
+            BUILD_ROOT + 'lib/assert.lisp', 
+            BUILD_ROOT + 'lib/io.lisp',
+            BUILD_ROOT + 'lib/str.lisp'],
         'switch.lisp': [
-            BUILD_ROOT + 'lib/assert.lisp',
-            BUILD_ROOT + 'lib/io.lisp'],
+            BUILD_ROOT + 'lib/assert.lisp', 
+            BUILD_ROOT + 'lib/io.lisp',
+            BUILD_ROOT + 'lib/str.lisp'],
         'unaligned-args.lisp': []
     }
 }
