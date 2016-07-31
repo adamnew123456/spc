@@ -308,7 +308,7 @@ class Common32Backend(ContextMixin, ThirtyTwoMixin, BaseBackend):
 
         if last_alignment is not None and last_alignment % 4 != 0:
             self._write_comment('Tail Padding {} bytes', 4 - (last_alignment % 4))
-            self.current_context.pad_param(4 - (last_alignment % 4))
+            self.current_context.func_stack.pad_param(4 - (last_alignment % 4))
 
         self.func_ret_type = self._resolve_if_type_name(func_defn.return_type)
         self.templates.emit_label(mangle_label(name))
