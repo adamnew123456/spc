@@ -5,7 +5,8 @@ import logging
 
 from ..backend import BaseBackend
 from ..backend_utils import (
-    comment_after, ContextMixin, IfLabels, SwitchLabels, ThirtyTwoMixin, WhileLabels,
+    CoercionContext, comment_after, ContextMixin, IfLabels, SwitchLabels,
+    ThirtyTwoMixin, WhileLabels,
 )
 from .. import expressions
 from ..require_processor import RequireProcessor
@@ -435,6 +436,8 @@ class Common32Backend(ContextMixin, ThirtyTwoMixin, BaseBackend):
         self._write_comment('  Expression: {}', expr)
         self._write_comment('  by_ref? {}', by_ref)
 
+        coercer = CoercionContext(self, temp_context, self.templates)
+
         if isinstance(expr, expressions.Variable):
             # by_ref obviously makes sense - otherwise, assignment to a variable
             # couldn't work at all!
@@ -564,12 +567,13 @@ class Common32Backend(ContextMixin, ThirtyTwoMixin, BaseBackend):
         elif isinstance(expr, expressions.IntToPointer):
             # by_ref doesn't make sense - can't assign to the result of an expression
             if by_ref:
-                self.error(*expr.loc, '(int-to-ptr x) is not valid in a ref context')
+                self.error(*expr.loc, '(int-to-ptr x t) is not valid in a ref context')
 
-            expr_dest, expr_type = self._compile_expression(expr.expr, temp_context)
-
-            if expr_type is not types.Integer:
-                self.error(*expr.loc, '(int-to-ptr x t) requires x to be an integer')
+            _expr_dest, _expr_type = self._compile_expression(expr.expr, temp_context)
+            try:
+                expr_dest, expr_type = coercer.coerce(_expr_dest, _expr_type, types.Integer)
+            except TypeError as err:
+                self.error(*expr.loc, '{}', err)
 
             ret_type = self._resolve_if_type_name(expr.type)
             if not isinstance(ret_type, types.PointerTo):
@@ -581,21 +585,12 @@ class Common32Backend(ContextMixin, ThirtyTwoMixin, BaseBackend):
             if by_ref:
                 self.error(*expr.loc, '(int-to-byte x) is not valid in a ref context')
 
-            expr_dest, expr_type = self._compile_expression(expr.expr, temp_context)
+            _expr_dest, _expr_type = self._compile_expression(expr.expr, temp_context)
             
-            if expr_type is not types.Integer:
+            if _expr_type is not types.Integer:
                 self.error(*expr.loc, '(int-to-byte x) requires x to be an integer')
 
-            byte_size = self._type_size(types.Byte)
-            byte_align = self._type_alignment(types.Byte)
-            dest_offset = temp_context.add_temp(byte_size, byte_align)
-            tmp_reg = self.templates.tmp_regs[0]
-
-            self.templates.emit_load_stack_word(tmp_reg, expr_dest)
-            self.templates.emit_int_to_byte(tmp_reg)
-            self.templates.emit_save_stack_byte(tmp_reg, dest_offset)
-
-            return dest_offset, types.Byte
+            return coercer.coerce(_expr_dest, types.Integer, types.Byte)
         elif isinstance(expr, expressions.ByteToInt):
             # by_ref doesn't work, again because this can't be assigned to directly
             if by_ref:
@@ -603,19 +598,10 @@ class Common32Backend(ContextMixin, ThirtyTwoMixin, BaseBackend):
 
             expr_dest, expr_type = self._compile_expression(expr.expr, temp_context)
             
-            if expr_type is not types.Byte:
+            if _expr_type is not types.Byte:
                 self.error(*expr.loc, '(byte-to-int x) requires x to be an byte')
 
-            int_size = self._type_size(types.Integer)
-            int_align = self._type_alignment(types.Integer)
-            dest_offset = temp_context.add_temp(int_size, int_align)
-            tmp_reg = self.templates.tmp_regs[0]
-
-            self.templates.emit_load_stack_byte(tmp_reg, expr_dest)
-            self.templates.emit_byte_to_int(tmp_reg)
-            self.templates.emit_save_stack_word(tmp_reg, dest_offset)
-
-            return dest_offset, types.Integer
+            return coercer.coerce(_expr_dest, types.Byte, types.Integer)
         elif isinstance(expr, expressions.Cast):
             # by_ref doesn't work, again because this can't be assigned to directly
             if by_ref:
@@ -638,11 +624,12 @@ class Common32Backend(ContextMixin, ThirtyTwoMixin, BaseBackend):
             if not isinstance(array_type, types.PointerTo):
                 self.error(*expr.loc, '(array x i) requires x to be a pointer type')
 
-            index_dest, index_type = self._compile_expression(expr.index, temp_context)
+            _index_dest, _index_type = self._compile_expression(expr.index, temp_context)
+            try:
+                index_dest, index_type = coercer.coerce(_index_dest, _index_type, types.Integer)
+            except TypeError as err:
+                self.error(*expr.loc, '{}', err)
     
-            if index_type is not types.Integer: 
-                self.error(*expr.loc, '(array x i) requires i to be an integer')
-
             element_type = self._resolve_if_type_name(array_type.type)
             element_align = self._type_alignment(element_type)
             raw_element_size, pad_element_size = types.elem_size_with_padding(self, array_type)
@@ -719,21 +706,26 @@ class Common32Backend(ContextMixin, ThirtyTwoMixin, BaseBackend):
             if by_ref:
                 self.error(*expr.loc, 'Cannot use arithmetic result in a ref context')
 
-            lhs_dest, lhs_type = self._compile_expression(expr.lhs, temp_context)
-            rhs_dest, rhs_type = self._compile_expression(expr.rhs, temp_context)
-            is_ptr_op = isinstance(lhs_type, types.PointerTo)
+            _lhs_dest, _lhs_type = self._compile_expression(expr.lhs, temp_context)
+            _rhs_dest, _rhs_type = self._compile_expression(expr.rhs, temp_context)
+            is_ptr_op = isinstance(_lhs_type, types.PointerTo)
                 
             if is_ptr_op:
                 if expr.kind not in (expressions.ARITH_PLUS, expressions.ARITH_MINUS):
                     self.error(*expr.loc,
                         'Pointer arithmetic must be + or minus')
-            elif lhs_type is not types.Integer:
-                self.error(*expr.loc,
-                    'Arithmetic expression requires integer or pointer on LHS')
 
-            if rhs_type is not types.Integer:
-                self.error(*expr.loc,
-                    'Arithmetic expression requires integer on RHS')
+                lhs_dest, lhs_type = _lhs_dest, _lhs_type
+            else:
+                try:
+                    lhs_dest, lhs_type = coercer.coerce(_lhs_dest, _lhs_type, types.Integer)
+                except TypeError as err:
+                    self.error(*expr.loc, '{}', err)
+
+            try:
+                rhs_dest, rhs_type = coercer.coerce(_rhs_dest, _rhs_type, types.Integer)
+            except TypeError as err:
+                self.error(*expr.loc, '{}', err)
     
             int_size = self._type_size(types.Integer)
             int_align = self._type_alignment(types.Integer)
@@ -776,17 +768,25 @@ class Common32Backend(ContextMixin, ThirtyTwoMixin, BaseBackend):
             if by_ref:
                 self.error(*expr.loc, 'Cannot use & result in a ref context')
 
-            lhs_dest, lhs_type = self._compile_expression(expr.lhs, temp_context)
-            rhs_dest, rhs_type = self._compile_expression(expr.rhs, temp_context)
+            _lhs_dest, _lhs_type = self._compile_expression(expr.lhs, temp_context)
+            _rhs_dest, _rhs_type = self._compile_expression(expr.rhs, temp_context)
             
-            if not isinstance(lhs_type, (types.IntegerType, types.PointerTo)):
-                self.error(*expr.loc, 
-                    'Comparison expression requires integer or pointer on LHS')
+            if isinstance(_lhs_type, types.PointerTo):
+                lhs_dest, lhs_type = _lhs_dest, _lhs_type
+            else:
+                try:
+                    lhs_dest, lhs_type = coercer.coerce(_lhs_dest, _lhs_type, types.Integer)
+                except TypeError as err:
+                    self.error(*expr.loc, '{}', err)
 
-            if not isinstance(rhs_type, (types.IntegerType, types.PointerTo)):
-                self.error(*expr.loc, 
-                    'Comparison expression requires integer or pointer on RHS')
-    
+            if isinstance(_rhs_type, types.PointerTo):
+                rhs_dest, rhs_type = _rhs_dest, _rhs_type
+            else:
+                try:
+                    rhs_dest, rhs_type = coercer.coerce(_rhs_dest, _rhs_type, types.Integer)
+                except TypeError as err:
+                    self.error(*expr.loc, '{}', err)
+
             int_size = self._type_size(types.Integer)
             int_align = self._type_alignment(types.Integer)
             dest_offset = temp_context.add_temp(int_size, int_align)
@@ -818,20 +818,19 @@ class Common32Backend(ContextMixin, ThirtyTwoMixin, BaseBackend):
             if by_ref:
                 self.error(*expr.loc, 'Cannot use bitwise result in a ref context')
 
-            lhs_dest, lhs_type = self._compile_expression(expr.lhs, temp_context)
-            rhs_dest, rhs_type = self._compile_expression(expr.rhs, temp_context)
+            _lhs_dest, _lhs_type = self._compile_expression(expr.lhs, temp_context)
+            _rhs_dest, _rhs_type = self._compile_expression(expr.rhs, temp_context)
 
-            self.templates.emit_load_stack_word(lhs_reg, lhs_dest)
-            self.templates.emit_load_stack_word(tmp_reg, rhs_dest)
-            
-            if lhs_type is not types.Integer:
-                self.error(*expr.loc, 
-                    'Bitwise expression requires integer on LHS')
+            try:
+                lhs_dest, lhs_type = coercer.coerce(_lhs_dest, _lhs_type, types.Integer)
+            except TypeError as err:
+                self.error(*expr.loc, '{}', err)
 
-            if rhs_type is not types.Integer:
-                self.error(*expr.loc, 
-                    'Bitwise expression requires integer on RHS')
-    
+            try:
+                rhs_dest, rhs_type = coercer.coerce(_rhs_dest, _rhs_type, types.Integer)
+            except TypeError as err:
+                self.error(*expr.loc, '{}', err)
+
             int_size = self._type_size(types.Integer)
             int_align = self._type_alignment(types.Integer)
             dest_offset = temp_context.add_temp(int_size, int_align)
@@ -839,6 +838,9 @@ class Common32Backend(ContextMixin, ThirtyTwoMixin, BaseBackend):
             lhs_reg = self.templates.tmp_regs[0]
             tmp_reg = self.templates.tmp_regs[1]
 
+            self.templates.emit_load_stack_word(lhs_reg, lhs_dest)
+            self.templates.emit_load_stack_word(tmp_reg, rhs_dest)
+            
             if isinstance(expr, expressions.BitAnd):
                 self.templates.emit_bit_and(lhs_reg, tmp_reg)
             elif isinstance(expr, expressions.BitOr):
@@ -860,11 +862,11 @@ class Common32Backend(ContextMixin, ThirtyTwoMixin, BaseBackend):
             if by_ref:
                 self.error(*expr.loc, 'Cannot use bitwise result in a ref context')
 
-            expr_dest, expr_type = self._compile_expression(expr.expr, temp_context)
-
-            if expr_type is not types.Integer:
-                self.error(*expr.loc,
-                    'Bitwise expression requires integer')
+            _expr_dest, _expr_type = self._compile_expression(expr.expr, temp_context)
+            try:
+                expr_dest, expr_type = coercer.coerce(_expr_dest, _expr_type, types.Integer)
+            except TypeError as err:
+                self.error(*expr.loc, '{}', err)
 
             int_size = self._type_size(types.Integer)
             int_align = self._type_alignment(types.Integer)
@@ -897,12 +899,12 @@ class Common32Backend(ContextMixin, ThirtyTwoMixin, BaseBackend):
             #     X := b_result
             end_label = next(self.label_maker)
 
-            lhs_dest, lhs_type = self._compile_expression(expr.lhs, temp_context)
+            _lhs_dest, _lhs_type = self._compile_expression(expr.lhs, temp_context)
+            try:
+                lhs_dest, lhs_type = coercer.coerce(_lhs_dest, _lhs_type, types.Integer)
+            except TypeError as err:
+                self.error(*expr.loc, '{}', err)
             
-            if lhs_type is not types.Integer:
-                self.error(*expr.loc, 
-                    'Logical expression requires integer on LHS')
-
             tmp_reg = self.templates.tmp_regs[0]
 
             self.templates.emit_load_stack_word(tmp_reg, lhs_dest)
@@ -913,11 +915,13 @@ class Common32Backend(ContextMixin, ThirtyTwoMixin, BaseBackend):
             # and we don't want the stack to become inconsistent across the branch
             sub_context = temp_context.get_temp_context()
             with sub_context:
-                rhs_dest, rhs_type = self._compile_expression(expr.rhs, sub_context)
+                _rhs_dest, _rhs_type = self._compile_expression(expr.rhs, sub_context)
 
-                if rhs_type is not types.Integer:
-                    self.error(*expr.loc, 
-                        'Logical expression requires integer on RHS')
+                sub_coercer = coercer.copy_with_context(sub_context)
+                try:
+                    rhs_dest, rhs_type = sub_coercer.coerce(_rhs_dest, _rhs_type, types.Integer)
+                except TypeError as err:
+                    self.error(*expr.loc, '{}', err)
 
                 self.templates.emit_load_stack_word(tmp_reg, rhs_dest)
 
@@ -944,11 +948,11 @@ class Common32Backend(ContextMixin, ThirtyTwoMixin, BaseBackend):
             #     X := b_result
             end_label = next(self.label_maker)
 
-            lhs_dest, lhs_type = self._compile_expression(expr.lhs, temp_context)
-            
-            if lhs_type is not types.Integer:
-                self.error(*expr.loc, 
-                    'Logical expression requires integer on LHS')
+            _lhs_dest, _lhs_type = self._compile_expression(expr.lhs, temp_context)
+            try:
+                lhs_dest, lhs_type = coercer.coerce(_lhs_dest, _lhs_type, types.Integer)
+            except TypeError as err:
+                self.error(*expr.loc, '{}', err)
 
             tmp_reg = self.templates.tmp_regs[0]
 
@@ -957,11 +961,13 @@ class Common32Backend(ContextMixin, ThirtyTwoMixin, BaseBackend):
 
             sub_context = temp_context.get_temp_context()
             with sub_context:
-                rhs_dest, rhs_type = self._compile_expression(expr.rhs, sub_context)
+                _rhs_dest, _rhs_type = self._compile_expression(expr.rhs, sub_context)
 
-                if rhs_type is not types.Integer:
-                    self.error(*expr.loc, 
-                        'Logical expression requires integer on RHS')
+                sub_coercer = coercer.copy_with_context(sub_context)
+                try:
+                    rhs_dest, rhs_type = sub_coercer.coerce(_rhs_dest, _rhs_type, types.Integer)
+                except TypeError as err:
+                    self.error(*expr.loc, '{}', err)
 
                 self.templates.emit_load_stack_word(tmp_reg, rhs_dest)
 
@@ -973,11 +979,13 @@ class Common32Backend(ContextMixin, ThirtyTwoMixin, BaseBackend):
             if by_ref:
                 self.error(*expr.loc, 'Cannot use logical result in a ref context')
 
-            expr_dest, expr_type = (
+            _expr_dest, _expr_type = (
                 self._compile_expression(expr.expr, temp_context))
 
-            if expr_type is not types.Integer:
-                self.error(*expr.loc, 'Logical expression requires integer')
+            try:
+                expr_dest, expr_type = coercer.coerce(_expr_dest, _expr_type, types.Integer)
+            except TypeError as err:
+                self.error(*expr.loc, '{}', err)
 
             int_size = self._type_size(types.Integer)
             int_align = self._type_alignment(types.Integer)
@@ -1021,14 +1029,15 @@ class Common32Backend(ContextMixin, ThirtyTwoMixin, BaseBackend):
 
             func_params = (self._resolve_if_type_name(param_type) for param_type in func_type.params)
             for param, param_expected_type in reversed(list(zip(expr.params, func_params))):
-                param_dest, param_real_type = self._compile_expression(param, temp_context)
-
-                if param_real_type != param_expected_type:
-                    self.error(*expr.loc, '{} expected in call, got {}', 
-                        param_expected_type, param_real_type)
+                _param_dest, _param_real_type = self._compile_expression(param, temp_context)
+                try:
+                    param_dest, param_real_type = coercer.coerce(_param_dest, 
+                            _param_real_type, param_expected_type)
+                except TypeError as err:
+                    self.error(*expr.loc, '{}', err)
 
                 rev_param_dests.append(param_dest)
-                rev_param_types.append(param_real_type)
+                rev_param_types.append(param_expected_type)
 
             # The reason for going through the parameter list again, is to
             # ensure that they make it to the end of the stack 
@@ -1118,16 +1127,20 @@ class Common32Backend(ContextMixin, ThirtyTwoMixin, BaseBackend):
         self._write_comment('  To: {}', assignable)
 
         temp_context = self.current_context.func_stack.get_temp_context(self)
+        coercer = CoercionContext(self, temp_context, self.templates)
+
         with temp_context:
             assign_dest, assign_type = (
                 self._compile_expression(assignable, temp_context, by_ref=True))
 
-            value_dest, value_type = (
+            _value_dest, _value_type = (
                 self._compile_expression(expression, temp_context))
 
-            if value_type != assign_type:
-                self.error(self.line, self.col,
-                    'Cannot assign {} to {}', value_type, assign_type)
+            try:
+                value_dest, value_type = coercer.coerce(_value_dest, 
+                        _value_type, assign_type)
+            except TypeError as err:
+                self.error(self.line, self.col, '{}', err)
 
             # We have to do a dereference here, since the effect of loading
             # by_ref is that we get an address rather than a value
@@ -1158,12 +1171,16 @@ class Common32Backend(ContextMixin, ThirtyTwoMixin, BaseBackend):
         tmp_reg = self.templates.tmp_regs[0]
 
         temp_context = self.current_context.func_stack.get_temp_context(self)
+        coercer = CoercionContext(self, temp_context, self.templates)
+
         with temp_context:
-            cond_dest, cond_type = (
+            _cond_dest, _cond_type = (
                 self._compile_expression(cond, temp_context))
 
-            if cond_type is not types.Integer:
-                self.error(*cond.loc, 'Conditional must be an integer')
+            try:
+                cond_dest, cond_type = coercer.coerce(_cond_dest, _cond_type, types.Integer)
+            except TypeError as err:
+                self.error(self.line, self.col, '{}', err)
 
             self.templates.emit_load_stack_word(tmp_reg, cond_dest)
 
@@ -1215,12 +1232,16 @@ class Common32Backend(ContextMixin, ThirtyTwoMixin, BaseBackend):
         if cond is not None:
             tmp_reg = self.templates.tmp_regs[0]
             temp_context = self.current_context.func_stack.get_temp_context(self)
+            coercer = CoercionContext(self, temp_context, self.templates)
+
             with temp_context:
-                cond_dest, cond_type = (
+                _cond_dest, _cond_type = (
                     self._compile_expression(cond, temp_context))
 
-                if cond_type is not types.Integer:
-                    self.error(*cond.loc, 'Conditional must be an integer')
+                try:
+                    cond_dest, cond_type = coercer.coerce(_cond_dest, _cond_type, types.Integer)
+                except TypeError as err:
+                    self.error(self.line, self.col, '{}', err)
 
                 self.templates.emit_load_stack_word(tmp_reg, cond_dest)
 
@@ -1265,12 +1286,16 @@ class Common32Backend(ContextMixin, ThirtyTwoMixin, BaseBackend):
         self.templates.emit_label(while_context.cond)
 
         temp_context = self.current_context.func_stack.get_temp_context(self)
+        coercer = CoercionContext(self, temp_context, self.templates)
+
         with temp_context:
-            cond_dest, cond_type = (
+            _cond_dest, _cond_type = (
                 self._compile_expression(cond, temp_context))
 
-            if cond_type is not types.Integer:
-                self.error(*cond.loc, 'Conditional must be an integer')
+            try:
+                cond_dest, cond_type = coercer.coerce(_cond_dest, _cond_type, types.Integer)
+            except TypeError as err:
+                self.error(self.line, self.col, '{}', err)
 
             self.templates.emit_load_stack_word(tmp_reg, cond_dest)
 
@@ -1322,12 +1347,16 @@ class Common32Backend(ContextMixin, ThirtyTwoMixin, BaseBackend):
         self._write_comment('  Return: {}', expr)
 
         temp_context = self.current_context.func_stack.get_temp_context(self)
+        coercer = CoercionContext(self, temp_context, self.templates)
+
         with temp_context:
-            ret_dest, ret_type = (
+            _ret_dest, _ret_type = (
                 self._compile_expression(expr, temp_context))
 
-            if ret_type != self.func_ret_type:
-                self.error(*expr.loc, 'Returned expression must be the same as the function return type')
+            try:
+                ret_dest, ret_type = coercer.coerce(_ret_dest, _ret_type, self.func_ret_type)
+            except TypeError as err:
+                self.error(*expr.loc, '{}', err)
 
             # Since we're barred from returning structures, the most we'll
             # have to deal with is words
