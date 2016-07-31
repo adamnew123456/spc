@@ -335,8 +335,8 @@ class Driver:
                         'int-to-ptr must be of the form (int-to-ptr EXPR TYPE)')
 
                 loc = expr[0].line, expr[0].column
-                ret_type = self.parse_type(expr[1])
-                expr = self.parse_expression(expr[2])
+                ret_type = self.parse_type(expr[2])
+                expr = self.parse_expression(expr[1])
                 return expressions.IntToPointer(loc, ret_type, expr)
             elif expr[0].content == 'int-to-byte':
                 if len(expr) != 2:
