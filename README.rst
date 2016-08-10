@@ -71,6 +71,19 @@ All the samples that come with the compiler can be compiled via ``build.py``:
     Buzz
     ...
 
+Running The Tests
+=================
+
+To ensure that the compiled programs behave in the expected way, use the
+testing script:
+
+    $ python3 test.py >& LOG 
+    $ grep @fail LOG
+
+If this command returns any results, then there is a bug somewhere (either in
+the tests, or in the compiler), which can be understood by reading the testing
+log.
+
 Interesting Things
 ==================
 
