@@ -1,4 +1,5 @@
 (require "lib/io.lisp")
+(require "arch/linux_x86.lisp")
 
 (declare
  (dquote (ascii "'"))
