@@ -1,3 +1,4 @@
+import copy
 import importlib
 import os, os.path
 import sys
@@ -7,7 +8,6 @@ from spc import driver, errors, lexer
 class BuildFailure(Exception):
     pass
 
-BUILD_ROOT = os.getcwd() + '/'
 BACKENDS = ['linux_x86', 'mars_mips']
 
 ASSEMBLERS = {
@@ -20,162 +20,118 @@ LINKERS = {
     'mars_mips': None,
 }
 
-# The core architecture libraries for each platform.
+# The core architecture libraries for each backend.
 ARCH_LIBS = {
-    'linux_x86': BUILD_ROOT + 'arch/linux_x86.lisp',
-    'mars_mips': BUILD_ROOT + 'arch/mars_mips.lisp',
+    'linux_x86': 'arch/linux_x86.lisp',
+    'mars_mips': 'arch/mars_mips.lisp',
 }
 
-# The source directories for each platform's samples
-SOURCE_DIRS = {
-    'linux_x86': BUILD_ROOT + 'samples/linux_x86',
-    'mars_mips': BUILD_ROOT + 'samples/mars_mips',
-}
-
-# The build directories where output files are located for each platform
+# The build directories where output files are located for each backend. 
 BUILD_DIRS = {
-    'linux_x86': BUILD_ROOT + 'build/linux_x86',
-    'mars_mips': BUILD_ROOT + 'build/mars_mips',
+    'linux_x86': 'build/linux_x86',
+    'mars_mips': 'build/mars_mips',
 }
 
-# The files that can be compiled in each platform, and their dependencies
-TARGETS = {
-    'linux_x86': {
-        'arith.lisp': [
-            BUILD_ROOT + 'lib/assert.lisp', 
-            BUILD_ROOT + 'lib/io.lisp',
-            BUILD_ROOT + 'lib/str.lisp'],
-        'cached-require.lisp': [
-            BUILD_ROOT + 'lib/assert.lisp', 
-            BUILD_ROOT + 'lib/io.lisp',
-            BUILD_ROOT + 'lib/str.lisp'],
-        'cmp.lisp': [
-            BUILD_ROOT + 'lib/assert.lisp', 
-            BUILD_ROOT + 'lib/io.lisp',
-            BUILD_ROOT + 'lib/str.lisp'],
-        'coercion.lisp': [],
-        'cond.lisp': [
-            BUILD_ROOT + 'lib/assert.lisp', 
-            BUILD_ROOT + 'lib/io.lisp',
-            BUILD_ROOT + 'lib/str.lisp'],
-        'error.lisp': [],
-        'fizzbuzz.lisp': [
-            BUILD_ROOT + 'lib/str.lisp',
-            BUILD_ROOT + 'lib/io.lisp'],
-        'hanoi.lisp': [
-            BUILD_ROOT + 'lib/str.lisp',
-            BUILD_ROOT + 'lib/io.lisp'],
-        'hello-world.lisp': [
-            BUILD_ROOT + 'lib/io.lisp',
-            BUILD_ROOT + 'lib/str.lisp'],
-        'if.lisp': [
-            BUILD_ROOT + 'lib/assert.lisp', 
-            BUILD_ROOT + 'lib/io.lisp',
-            BUILD_ROOT + 'lib/str.lisp'],
-        'not.lisp': [
-            BUILD_ROOT + 'lib/assert.lisp', 
-            BUILD_ROOT + 'lib/io.lisp',
-            BUILD_ROOT + 'lib/str.lisp'],
-        'ptr-arith.lisp': [
-            BUILD_ROOT + 'lib/assert.lisp', 
-            BUILD_ROOT + 'lib/io.lisp',
-            BUILD_ROOT + 'lib/str.lisp'],
-        'read.lisp': [
-            BUILD_ROOT + 'lib/io.lisp'],
-        'require-hiding.lisp': [
-            BUILD_ROOT + 'lib/assert.lisp', 
-            BUILD_ROOT + 'lib/io.lisp',
-            BUILD_ROOT + 'lib/str.lisp'],
-        'static-if.lisp': [
-            BUILD_ROOT + 'lib/assert.lisp', 
-            BUILD_ROOT + 'lib/io.lisp',
-            BUILD_ROOT + 'lib/str.lisp'],
-        'switch.lisp': [
-            BUILD_ROOT + 'lib/assert.lisp', 
-            BUILD_ROOT + 'lib/io.lisp',
-            BUILD_ROOT + 'lib/str.lisp'],
-        'unaligned-args.lisp': []
-    },
-    'mars_mips': {
-        'arith.lisp': [
-            BUILD_ROOT + 'lib/assert.lisp', 
-            BUILD_ROOT + 'lib/io.lisp',
-            BUILD_ROOT + 'lib/str.lisp'],
-        'cached-require.lisp': [
-            BUILD_ROOT + 'lib/assert.lisp', 
-            BUILD_ROOT + 'lib/io.lisp',
-            BUILD_ROOT + 'lib/str.lisp'],
-        'cmp.lisp': [
-            BUILD_ROOT + 'lib/assert.lisp', 
-            BUILD_ROOT + 'lib/io.lisp',
-            BUILD_ROOT + 'lib/str.lisp'],
-        'coercion.lisp': [],
-        'cond.lisp': [
-            BUILD_ROOT + 'lib/assert.lisp', 
-            BUILD_ROOT + 'lib/io.lisp',
-            BUILD_ROOT + 'lib/str.lisp'],
-        'error.lisp': [],
-        'fizzbuzz.lisp': [
-            BUILD_ROOT + 'lib/assert.lisp', 
-            BUILD_ROOT + 'lib/io.lisp',
-            BUILD_ROOT + 'lib/str.lisp'],
-        'func-ptr.lisp': [
-            BUILD_ROOT + 'lib/assert.lisp', 
-            BUILD_ROOT + 'lib/io.lisp',
-            BUILD_ROOT + 'lib/str.lisp'],
-        'hanoi.lisp': [
-            BUILD_ROOT + 'lib/assert.lisp', 
-            BUILD_ROOT + 'lib/io.lisp',
-            BUILD_ROOT + 'lib/str.lisp'],
-        'hello-global.lisp': [
-            BUILD_ROOT + 'lib/io.lisp',
-            BUILD_ROOT + 'lib/str.lisp'],
-        'hello-local.lisp': [
-            BUILD_ROOT + 'lib/io.lisp',
-            BUILD_ROOT + 'lib/str.lisp'],
-        'jagged-struct.lisp': [],
-        'linked-ints.lisp': [
-            BUILD_ROOT + 'lib/assert.lisp', 
-            BUILD_ROOT + 'lib/io.lisp',
-            BUILD_ROOT + 'lib/str.lisp'],
-        'many-param.lisp': [
-            BUILD_ROOT + 'lib/assert.lisp', 
-            BUILD_ROOT + 'lib/io.lisp',
-            BUILD_ROOT + 'lib/str.lisp'],
-        'not.lisp': [
-            BUILD_ROOT + 'lib/assert.lisp', 
-            BUILD_ROOT + 'lib/io.lisp',
-            BUILD_ROOT + 'lib/str.lisp'],
-        'pair-ints.lisp': [
-            BUILD_ROOT + 'lib/assert.lisp', 
-            BUILD_ROOT + 'lib/io.lisp',
-            BUILD_ROOT + 'lib/str.lisp'],
-        'print-ascii.lisp': [],
-        'ptr-arith.lisp': [
-            BUILD_ROOT + 'lib/assert.lisp', 
-            BUILD_ROOT + 'lib/io.lisp',
-            BUILD_ROOT + 'lib/str.lisp'],
-        'require-hiding.lisp': [
-            BUILD_ROOT + 'lib/assert.lisp', 
-            BUILD_ROOT + 'lib/io.lisp',
-            BUILD_ROOT + 'lib/str.lisp'],
-        'static-if.lisp': [
-            BUILD_ROOT + 'lib/assert.lisp', 
-            BUILD_ROOT + 'lib/io.lisp',
-            BUILD_ROOT + 'lib/str.lisp'],
-        'switch.lisp': [
-            BUILD_ROOT + 'lib/assert.lisp', 
-            BUILD_ROOT + 'lib/io.lisp',
-            BUILD_ROOT + 'lib/str.lisp'],
-        'unaligned-args.lisp': []
-    }
-}
+def exists(iterable):
+    """
+    Returns True if there is an element in the iterable, False otherwise.
+    """
+    try:
+        next(iterable)
+        return True
+    except StopIteration:
+        return False
 
-def compile_file(platform, source, target, library=False):
+def get_backend(filename):
+    """
+    Gets the backend for the file name, if there is one.
+    """
+    for backend in BACKENDS:
+        if backend in filename:
+            return backend
+
+    return None
+
+def parse_dependencies(fobj):
+    """
+    Parses the dependencies found by reading the given file object.
+
+    Returns a dict which maps filenames to lists of filenames.
+    """
+    database = {}
+    for line in fobj:
+        line = line.strip()
+        if not line:
+            continue
+
+        filename, raw_deps = line.split(':')
+        backend = get_backend(filename)
+
+        def replace_backend(dependency):
+            if dependency == '*':
+                if backend is None:
+                    raise SyntaxError('Cannot use * without backend: ' + filename)
+                else:
+                    return ARCH_LIBS[backend]
+            else:
+                return dependency
+
+        database[filename] = set(replace_backend(dep) for dep in raw_deps.split())
+
+    return database
+
+def build_dependencies(filename, database):
+    """
+    Builds a dependency list for the given filename.
+    """
+    deps = set()
+    to_search = [filename]
+
+    # First, prune out any irrelevant parts of the dependency mapping, by
+    # figuring out what files are in the dependency chain
+    while to_search:
+        dep = to_search.pop()
+        deps.add(dep)
+
+        for sub_dep in database[dep]:
+            if sub_dep not in deps:
+                to_search.append(sub_dep)
+
+    # Then, do the normal dependency sort
+    relevant_db = {}
+    for relevant_dep in deps:
+        relevant_db[relevant_dep] = database[relevant_dep].copy()
+
+    ordered_deps = []
+    while exists(key for key in relevant_db if not relevant_db[key]):
+        empty_key = next(key for key in relevant_db if not relevant_db[key])
+        ordered_deps.append(empty_key)
+
+        del relevant_db[empty_key]
+        for nonempty_key in relevant_db:
+            if empty_key in relevant_db[nonempty_key]:
+                relevant_db[nonempty_key].remove(empty_key)
+
+    if relevant_db:
+        print('Cycle in dependency graph')
+        for filename, deps in relevant_db:
+            print(filename)
+            for dep in deps:
+                print(' -', dep)
+
+        raise BuildFailure
+
+    return ordered_deps
+        
+# The files that can be compiled in each backend, and their dependencies.
+# Computed later on, in the __main__ block
+TARGETS = {}
+
+def compile_file(backend, source, target, library=False):
     """
     Compiles a single .lisp file into a .asm file.
     """
-    backend_module = importlib.import_module('spc.backends.' + platform)
+    backend_module = importlib.import_module('spc.backends.' + backend)
 
     with open(source) as source_file, open(target, 'w') as target_file:
         lex = lexer.Lexer(source_file, source_file.name)
@@ -205,115 +161,90 @@ def link_files(linker, input_files, output_file):
     if result != 0:
         raise BuildFailure
 
-def source_file_to_asm_file(platform, filename):
+def source_to_asm_path(backend, filename):
     """
-    Converts a source path into the path of a compilation target (ASM file).
+    Converts a source code filename into an assembly output filename.
 
-    >>> source_file_to_asm_file('linux_x86', 'lib/io.lisp')
-    'build/linux_x86/io.asm'
+    >>> source_to_asm_path('linux_x86', 'a/b/c/foo.lisp')
+    'build/linux_x86/foo.asm'
     """
-    _, just_name = os.path.split(filename)
-    no_ext, _ = os.path.splitext(just_name)
+    _, source_file = os.path.split(filename)
+    source_prefix, _ = os.path.splitext(source_file)
+    return os.path.join(BUILD_DIRS[backend], source_prefix + '.asm')
 
-    return BUILD_DIRS[platform] + '/' + no_ext + '.asm'
-
-def replace_extension(filename, ext):
+def source_to_obj_path(backend, filename):
     """
-    Replaces the extension on a file, retaining the path.
+    Converts a source code filename into an assembly output filename.
 
-    >>> replace_extension(
+    >>> source_to_obj_path('linux_x86', 'a/b/c/foo.lisp')
+    'build/linux_x86/foo.o'
     """
-    no_ext, _ = os.path.splitext(filename)
-    return no_ext + ext
+    _, source_file = os.path.split(filename)
+    source_prefix, _ = os.path.splitext(source_file)
+    return os.path.join(BUILD_DIRS[backend], source_prefix + '.o')
 
-def main(platform, filename):
-    if platform not in BACKENDS:
-        print('Invalid platform:', platform)
-        for platform in BACKENDS:
-            print(' -', platform)
+def source_to_bin_path(backend, filename):
+    """
+    Converts a source code filename into an assembly output filename.
 
-        raise BuildFailure
+    >>> source_to_bin_path('linux_x86', 'a/b/c/foo.lisp')
+    'build/linux_x86/foo'
+    """
+    _, source_file = os.path.split(filename)
+    source_prefix, _ = os.path.splitext(source_file)
+    return os.path.join(BUILD_DIRS[backend], source_prefix)
 
-    if filename not in TARGETS[platform]:
+def main(backend, filename):
+    if filename not in TARGETS:
         print('Invalid target:', filename)
-        for target in TARGETS[platform]:
-            print(' -', target)
+        for target in TARGETS:
+            if get_backend(target) is not None and target.startswith('samples'):
+                print(' -', target)
 
         raise BuildFailure
 
-    os.makedirs(BUILD_DIRS[platform], exist_ok=True)
+    os.makedirs(BUILD_DIRS[backend], exist_ok=True)
 
-    main_source = SOURCE_DIRS[platform] + '/' + filename
-    main_asm = BUILD_DIRS[platform] + '/' + replace_extension(filename, '.asm')
-    compile_file(platform, main_source, main_asm)
+    source_files = build_dependencies(filename, TARGETS)
+    for source_file in source_files:
+        source_asm = source_to_asm_path(backend, source_file)
+        compile_file(backend, source_file, source_asm, library=source_file != filename)
 
-    for dep in TARGETS[platform][filename]:
-        dep_asm = source_file_to_asm_file(platform, dep)
-        compile_file(platform, dep, dep_asm, library=True)
+    if ASSEMBLERS[backend] is not None:
+        assembler = ASSEMBLERS[backend]
+        for source_file in source_files:
+            source_asm = source_to_asm_path(backend, source_file)
+            source_obj = source_to_obj_path(backend, source_file)
+            assemble_file(assembler, source_asm, source_obj)
 
-    arch_lib_source = ARCH_LIBS[platform]
-    arch_lib_asm = source_file_to_asm_file(platform, arch_lib_source)
-    compile_file(platform, arch_lib_source, arch_lib_asm, library=True)
-
-    if ASSEMBLERS[platform] is not None:
-        assembler = ASSEMBLERS[platform]
-
-        main_obj = replace_extension(main_asm, '.o')
-        assemble_file(assembler, main_asm, main_obj)
-
-        for dep in TARGETS[platform][filename]:
-            dep_asm = source_file_to_asm_file(platform, dep)
-            dep_obj = replace_extension(dep_asm, '.o')
-            assemble_file(assembler, dep_asm, dep_obj)
-
-
-        arch_lib_obj = replace_extension(arch_lib_asm, '.o')
-        assemble_file(assembler, arch_lib_asm, arch_lib_obj)
-
-    if LINKERS[platform] is not None:
-        linker = LINKERS[platform]
-        main_bin = replace_extension(main_obj, '')
+    if LINKERS[backend] is not None:
+        linker = LINKERS[backend]
+        main_bin = source_to_bin_path(backend, filename)
 
         inputs = []
-        inputs.append(main_obj)
-
-        for dep in TARGETS[platform][filename]:
-            dep_asm = source_file_to_asm_file(platform, dep)
-            dep_obj = replace_extension(dep_asm, '.o')
-            inputs.append(dep_obj)
-
-        inputs.append(arch_lib_obj)
+        for source_file in reversed(source_files):
+            inputs.append(source_to_obj_path(backend, source_file))
 
         link_files(linker, inputs, main_bin)
 
 if __name__ == '__main__':
     # Add special support for the demo script
-    try:
-        if sys.argv[1] == 'sample.lisp':
-            os.makedirs(BUILD_DIRS['mars_mips'], exist_ok=True)
-
-            compile_file('mars_mips', 
-                    BUILD_ROOT + 'sample.lisp',
-                    source_file_to_asm_file('mars_mips', 'sample.lisp'))
-
-            compile_file('mars_mips',
-                    ARCH_LIBS['mars_mips'],
-                    source_file_to_asm_file('mars_mips', ARCH_LIBS['mars_mips']),
-                    library=True)
-
-            sys.exit(0)
-    except BuildFailure:
-        sys.exit(1)
+    with open('build.deps') as deps:
+        TARGETS = parse_dependencies(deps)
 
     try:
-        _, platform, filename = sys.argv
+        _, filename = sys.argv
     except ValueError:
-        print('build.py <PLATFORM> <FILENAME>', file=sys.stderr)
+        print('build.py <FILENAME>', file=sys.stderr)
         print('build.py sample.lisp')
         sys.exit(1)
 
     try:
-        main(sys.argv[1], sys.argv[2])
+        backend = get_backend(filename)
+        if backend is None:
+            print('Cannot build:', filename)
+
+        main(backend, filename)
     except BuildFailure:
         sys.exit(1)
 

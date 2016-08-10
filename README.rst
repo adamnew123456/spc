@@ -30,7 +30,7 @@ types and functions, notes about the restrictions which make the compiler somewh
 easier to implement. As a bonus, it actually serves as a runnable example which
 computes the sum of the numbers entered::
 
-    $ python3 build.py sample.lisp
+    $ python3 build.py mars_mips_sample.lisp
     $ cd build/mars_mips
     $ java -jar Mars.jar nc p sample.asm
     5
@@ -51,7 +51,7 @@ two backends:
 
 All the samples that come with the compiler can be compiled via ``build.py``:
 
-    $ python3 build.py mars_mips fizzbuzz.lisp
+    $ python3 build.py samples/mars_mips/fizzbuzz.lisp
     $ cd build/mars_mips
     $ java -jar Mars.jar nc p fizzbuzz.asm
     1
@@ -61,11 +61,8 @@ All the samples that come with the compiler can be compiled via ``build.py``:
     Buzz
     ...
 
-    $ python3 build.py linux_x86 fizzbuzz.lisp
+    $ python3 build.py samples/linux_x86/fizzbuzz.lisp
     $ cd build/linux_x86
-    $ as linux_x86.asm -o linux_x86.o
-    $ as fizzbuzz.asm -o fizzbuzz.o
-    $ ld fizzbuzz.o linux_x86.o -o fizzbuzz
     $ ./fizzbuzz
     1
     2

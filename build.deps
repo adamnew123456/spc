@@ -1,0 +1,49 @@
+arch/linux_x86.lisp:
+arch/mars_mips.lisp:
+
+lib/assert.lisp: lib/io.lisp
+lib/io.lisp: lib/str.lisp
+lib/str.lisp:
+
+samples/linux_x86/arith.lisp: * lib/assert.lisp
+samples/linux_x86/cached-require.lisp: * lib/assert.lisp
+samples/linux_x86/cmp.lisp: * lib/assert.lisp
+samples/linux_x86/coercion.lisp: *
+samples/linux_x86/cond.lisp: * lib/assert.lisp
+samples/linux_x86/error.lisp:
+samples/linux_x86/fizzbuzz.lisp: * lib/io.lisp
+samples/linux_x86/hanoi.lisp: * lib/io.lisp
+samples/linux_x86/hello-world.lisp: * lib/io.lisp
+samples/linux_x86/if.lisp: * lib/assert.lisp
+samples/linux_x86/not.lisp: * lib/assert.lisp
+samples/linux_x86/ptr-arith.lisp: * lib/assert.lisp
+samples/linux_x86/read.lisp: * lib/io.lisp
+samples/linux_x86/require-hiding.lisp: * lib/assert.lisp
+samples/linux_x86/static-if.lisp: * lib/assert.lisp
+samples/linux_x86/switch.lisp: * lib/assert.lisp
+samples/linux_x86/unaligned-args.lisp:
+
+samples/mars_mips/arith.lisp: * lib/assert.lisp
+samples/mars_mips/cached-require.lisp: * lib/assert.lisp
+samples/mars_mips/cmp.lisp: * lib/assert.lisp
+samples/mars_mips/coercion.lisp: *
+samples/mars_mips/cond.lisp: * lib/assert.lisp
+samples/mars_mips/error.lisp:
+samples/mars_mips/fizzbuzz.lisp: * lib/io.lisp
+samples/mars_mips/func-ptr.lisp: * lib/assert.lisp
+samples/mars_mips/hanoi.lisp: * lib/io.lisp
+samples/mars_mips/hello-global.lisp: * lib/io.lisp
+samples/mars_mips/hello-local.lisp: * lib/io.lisp
+samples/mars_mips/jagged-struct.lisp:
+samples/mars_mips/linked-ints.lisp: * lib/assert.lisp
+samples/mars_mips/many-param.lisp: * lib/assert.lisp
+samples/mars_mips/not.lisp: * lib/assert.lisp
+samples/mars_mips/pair-ints.lisp: * lib/assert.lisp
+samples/mars_mips/print-ascii.lisp: *
+samples/mars_mips/ptr-arith.lisp: * lib/assert.lisp
+samples/mars_mips/require-hiding.lisp: * lib/assert.lisp
+samples/mars_mips/static-if.lisp: * lib/assert.lisp
+samples/mars_mips/switch.lisp: * lib/assert.lisp
+samples/mars_mips/unaligned-args.lisp:
+
+mars_mips_sample.lisp: *
