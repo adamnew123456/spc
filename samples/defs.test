@@ -1,0 +1,230 @@
+@file samples/linux_x86/arith.lisp
+@output
+@empty
+@error
+@empty
+@go
+
+@file samples/linux_x86/cached-require.lisp
+@output
+@empty
+@error
+@empty
+@go
+
+@file samples/linux_x86/cmp.lisp
+@output
+@empty
+@error
+@empty
+@go
+
+@file samples/linux_x86/coercion.lisp
+@output
+@empty
+@error
+@empty
+@go
+
+@file samples/linux_x86/cond.lisp
+@output
+@empty
+@error
+@empty
+@go
+
+@file samples/linux_x86/error.lisp
+@compile fail
+@go
+
+@file samples/linux_x86/fizzbuzz.lisp
+@output
+1
+2
+Fizz
+4
+Buzz
+Fizz
+7
+8
+Fizz
+Buzz
+11
+Fizz
+13
+14
+FizzBuzz
+16
+17
+Fizz
+19
+Buzz
+Fizz
+22
+23
+Fizz
+Buzz
+26
+Fizz
+28
+29
+FizzBuzz
+31
+32
+Fizz
+34
+Buzz
+Fizz
+37
+38
+Fizz
+Buzz
+41
+Fizz
+43
+44
+FizzBuzz
+46
+47
+Fizz
+49
+Buzz
+Fizz
+52
+53
+Fizz
+Buzz
+56
+Fizz
+58
+59
+FizzBuzz
+61
+62
+Fizz
+64
+Buzz
+Fizz
+67
+68
+Fizz
+Buzz
+71
+Fizz
+73
+74
+FizzBuzz
+76
+77
+Fizz
+79
+Buzz
+Fizz
+82
+83
+Fizz
+Buzz
+86
+Fizz
+88
+89
+FizzBuzz
+91
+92
+Fizz
+94
+Buzz
+Fizz
+97
+98
+Fizz
+Buzz
+@end
+@error
+@empty
+@go
+
+@file samples/linux_x86/hanoi.lisp
+@input
+3
+@end
+@output
+Move disk 1 from Peg 1 to Peg 3
+Move disk 2 from Peg 1 to Peg 2
+Move disk 1 from Peg 3 to Peg 2
+Move disk 3 from Peg 1 to Peg 3
+Move disk 1 from Peg 2 to Peg 1
+Move disk 2 from Peg 2 to Peg 3
+Move disk 1 from Peg 1 to Peg 3
+@end
+@error
+@empty
+@go
+
+@file samples/linux_x86/hello-world.lisp
+@output
+Hello, World!
+@end
+@empty
+@error
+@go
+
+@file samples/linux_x86/if.lisp
+@output
+@empty
+@error
+@empty
+@go
+
+@file samples/linux_x86/not.lisp
+@output
+@empty
+@error
+@empty
+@go
+
+@file samples/linux_x86/ptr-arith.lisp
+@output
+@empty
+@error
+@empty
+@go
+
+@file samples/linux_x86/read.lisp
+@input
+foobar
+@end
+@output
+'foobar'
+@end
+@error
+@empty
+@go
+
+@file samples/linux_x86/require-hiding.lisp
+@output
+@empty
+@error
+@empty
+@go
+
+@file samples/linux_x86/static-if.lisp
+@output
+@empty
+@error
+@empty
+@end
+
+@file samples/linux_x86/switch.lisp
+@output
+@empty
+@error
+@empty
+@end
+
+@file samples/linux_x86/unaligned-args.lisp
+@output
+@empty
+@error
+@empty
+@end

@@ -113,13 +113,7 @@ def build_dependencies(filename, database):
                 relevant_db[nonempty_key].remove(empty_key)
 
     if relevant_db:
-        print('Cycle in dependency graph')
-        for filename, deps in relevant_db:
-            print(filename)
-            for dep in deps:
-                print(' -', dep)
-
-        raise BuildFailure
+        raise BuildFailure('Cyclic dependency')
 
     return ordered_deps
         
@@ -141,8 +135,7 @@ def compile_file(backend, source, target, library=False):
         try:
             drv.compile()
         except errors.CompilerError as err:
-            print(err.message, file=sys.stderr)
-            raise BuildFailure
+            raise BuildFailure(err.message)
 
 def assemble_file(assembler, input_file, output_file):
     """
@@ -150,7 +143,7 @@ def assemble_file(assembler, input_file, output_file):
     """
     result = os.system('{} "{}" -o "{}"'.format(assembler, input_file, output_file))
     if result != 0:
-        raise BuildFailure
+        raise BuildFailure('Cannot assemble "' + input_file + '"')
 
 def link_files(linker, input_files, output_file):
     """
@@ -159,7 +152,7 @@ def link_files(linker, input_files, output_file):
     input_list = ' '.join('"' + filename + '"' for filename in input_files)
     result = os.system('{} {} -o "{}"'.format(linker, input_list, output_file))
     if result != 0:
-        raise BuildFailure
+        raise BuildFailure('Cannot link inputs')
 
 def source_to_asm_path(backend, filename):
     """
@@ -194,14 +187,12 @@ def source_to_bin_path(backend, filename):
     source_prefix, _ = os.path.splitext(source_file)
     return os.path.join(BUILD_DIRS[backend], source_prefix)
 
-def main(backend, filename):
+def build(backend, filename):
+    """
+    Compiles the given filename against the given backend.
+    """
     if filename not in TARGETS:
-        print('Invalid target:', filename)
-        for target in TARGETS:
-            if get_backend(target) is not None and target.startswith('samples'):
-                print(' -', target)
-
-        raise BuildFailure
+        raise BuildFailure('Do not know how to build "' + filename + '"')
 
     os.makedirs(BUILD_DIRS[backend], exist_ok=True)
 
@@ -226,26 +217,47 @@ def main(backend, filename):
             inputs.append(source_to_obj_path(backend, source_file))
 
         link_files(linker, inputs, main_bin)
+        return main_bin
 
-if __name__ == '__main__':
-    # Add special support for the demo script
+def auto_build(filename):
+    """
+    Builds the given filename, inferring the backend.
+    """
+    backend = get_backend(filename)
+    if not backend:
+        raise ValueError('Cannot infer backend from filename')
+
+    return build(backend, filename)
+
+def init_targets():
+    """
+    Loads the build targets.
+    """
+    global TARGETS
     with open('build.deps') as deps:
         TARGETS = parse_dependencies(deps)
+
+if __name__ == '__main__':
+    init_targets()
 
     try:
         _, filename = sys.argv
     except ValueError:
         print('build.py <FILENAME>', file=sys.stderr)
-        print('build.py sample.lisp')
+
+        print('Available targets:')
+        for target in TARGETS:
+            if get_backend(target) is not None and target.startswith('samples'):
+                print(' -', target)
         sys.exit(1)
 
     try:
-        backend = get_backend(filename)
-        if backend is None:
-            print('Cannot build:', filename)
-
-        main(backend, filename)
-    except BuildFailure:
+        auto_build(filename)
+    except ValueError as err:
+        print(err)
+        sys.exit(1)
+    except BuildFailure as err:
+        print(err)
         sys.exit(1)
 
     sys.exit(0)
