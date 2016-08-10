@@ -112,14 +112,14 @@
  ;;
  ;;  (ref E) gets a pointer to the value produced by E.
  ;;  (deref E) gets the value pointed to by the pointer produced by E
- ;;  (ptr-to-int E) gets the pointer which has the integer in E as its address
- ;;  (int-to-ptr E T) gets the integer address in the pointer produced by E
- ;;  (cast T E) casts the pointer produced by E to another type T
+ ;;  (cast T E) casts E to the type T. This works for:
+ ;;
+ ;;    - byte -> pointer
+ ;;    - int <-> pointer
+ ;;    - pointer <-> pointer
+ ;;    - int <-> byte
  ;;
  ;; Getting the size of a type is accomplished via (size-of T)
- ;;
- ;; Truncate/expand bytes <-> integers:
- ;;  (byte-to-int E) and (int-to-byte E)
  ;; 
  ;; However, note that integers are automatically downcast, and bytes
  ;; automatically upcast, when a value of one type or the other is needed.
@@ -198,7 +198,7 @@
   (newline (array-of byte 2)))
 
  (block
-  (set list (int-to-ptr 0 linked-ints-ptr))
+  (set list (cast linked-ints-ptr 0))
   (set read-value 1)
   
   (set (array newline 0) 10)

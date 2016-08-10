@@ -11,4 +11,4 @@
 
 (define main ()
  (declare)
- (unaligned (int-to-byte 42) 7))
+ (unaligned 42 7))

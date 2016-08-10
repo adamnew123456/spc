@@ -10,7 +10,7 @@
 (define main ()
  (declare)
  (block
-  (set (array buff 100) (int-to-byte 0))
+  (set (array buff 100) 0)
   (linux.read 0 buff 100)
 
   (io.print dquote)

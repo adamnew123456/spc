@@ -13,7 +13,7 @@
 ;;  7. Logical expressions
 ;;  8. Comparison operations
 ;;  9. if/while/switch conditionals
-;; 10. int-to-ptr
+;; 10. cast from byte to pointer
     
 (declare
  (int->byte (function byte integer))
@@ -82,4 +82,4 @@
    (case byteval 0))
 
   ;; #10
-  (set byteptr (int-to-ptr byteval (pointer-to byte)))))
+  (set byteptr (cast (pointer-to byte) byteval))))

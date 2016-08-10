@@ -30,10 +30,10 @@
   (msg.4 (ascii "List[3] should be NULL")))
  
  (block
-  (set (array newline 0) (int-to-byte 10))
-  (set (array newline 1) (int-to-byte 0))
+  (set (array newline 0) 10)
+  (set (array newline 1) 0)
 
-  (set list (int-to-ptr (pointer-to linked-ints) 0))
+  (set list (cast (pointer-to linked-ints) 0))
   (set list (cons 1 list))
   (set list (cons 2 list))
 
