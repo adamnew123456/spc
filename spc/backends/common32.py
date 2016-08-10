@@ -553,55 +553,6 @@ class Common32Backend(ContextMixin, ThirtyTwoMixin, BaseBackend):
                     self.templates.frame_reg, dest_offset)
 
                 return dest_offset, self._resolve_if_type_name(expr_type.type)
-        elif isinstance(expr, expressions.PointerToInt):
-            # by_ref doesn't make sense - an integer can't be assigned to
-            if by_ref:
-                self.error(*expr.loc, '(ptr-to-int x) is not valid in a ref context')
-
-            expr_dest, expr_type = self._compile_expression(expr.expr, temp_context)
-
-            if not isinstance(expr_type, types.PointerTo):
-                self.error(*expr.loc, '(ptr-to-int x) requires x to be a non-function pointer')
-
-            return expr_dest, types.Integer
-        elif isinstance(expr, expressions.IntToPointer):
-            # by_ref doesn't make sense - can't assign to the result of an expression
-            if by_ref:
-                self.error(*expr.loc, '(int-to-ptr x t) is not valid in a ref context')
-
-            _expr_dest, _expr_type = self._compile_expression(expr.expr, temp_context)
-            try:
-                expr_dest, expr_type = coercer.coerce(_expr_dest, _expr_type, types.Integer)
-            except TypeError as err:
-                self.error(*expr.loc, '{}', err)
-
-            ret_type = self._resolve_if_type_name(expr.type)
-            if not isinstance(ret_type, types.PointerTo):
-                self.error(*expr.loc, '(int-to-ptr x t) requires t to be pointer type')
-
-            return expr_dest, ret_type
-        elif isinstance(expr, expressions.IntToByte):
-            # by_ref doesn't work, again because this can't be assigned to directly
-            if by_ref:
-                self.error(*expr.loc, '(int-to-byte x) is not valid in a ref context')
-
-            _expr_dest, _expr_type = self._compile_expression(expr.expr, temp_context)
-            
-            if _expr_type is not types.Integer:
-                self.error(*expr.loc, '(int-to-byte x) requires x to be an integer')
-
-            return coercer.coerce(_expr_dest, types.Integer, types.Byte)
-        elif isinstance(expr, expressions.ByteToInt):
-            # by_ref doesn't work, again because this can't be assigned to directly
-            if by_ref:
-                self.error(*expr.loc, '(byte-to-int x) is not valid in a ref context')
-
-            _expr_dest, _expr_type = self._compile_expression(expr.expr, temp_context)
-            
-            if _expr_type is not types.Byte:
-                self.error(*expr.loc, '(byte-to-int x) requires x to be an byte')
-
-            return coercer.coerce(_expr_dest, types.Byte, types.Integer)
         elif isinstance(expr, expressions.Cast):
             # by_ref doesn't work, again because this can't be assigned to directly
             if by_ref:
@@ -609,14 +560,35 @@ class Common32Backend(ContextMixin, ThirtyTwoMixin, BaseBackend):
 
             expr_dest, expr_type = self._compile_expression(expr.expr, temp_context)
 
-            if not isinstance(expr_type, types.PointerTo):
-                self.error(*expr.loc, '(cast t x) requires x to be a pointer type')
-
+            # Cast has a couple of valid scenarios - for types A, B:
+            #
+            # 1. Casting from A to A
+            # 2. Casting from (pointer-to A) to (pointer-to B)
+            # 3. Casting from integer to (pointer-to A)
+            #  3a. Casting from byte to (pointer-to A)
+            # 4. Casting from (pointer-to A) to integer
+            # 5. Casting from byte to integer
+            # 6. Casting from integer to byte
+            #
+            # Note that there is no corresponding 4a, since the result will be
+            # coerced to a byte by the containing expression.
             ret_type = self._resolve_if_type_name(expr.type)
-            if not isinstance(ret_type, types.PointerTo):
-                self.error(*expr.loc, '(cast t x) requires t to be pointer type')
 
-            return expr_dest, ret_type
+            try:
+                # This takes care of cases 1, 5 and 6
+                return coercer.coerce(expr_dest, expr_type, ret_type)
+            except TypeError:
+                if isinstance(expr_type, types.PointerTo) and isinstance(ret_type, types.PointerTo):
+                    return expr_dest, ret_type
+                elif expr_type is types.Integer and isinstance(ret_type, types.PointerTo):
+                    return expr_dest, ret_type
+                elif expr_type is types.Byte and isinstance(ret_type, types.PointerTo):
+                    int_dest, _ = coercer.coerce(expr_dest, expr_type, types.Integer)
+                    return int_dest, ret_type
+                elif isinstance(expr_type, types.PointerTo) and ret_type is types.Integer:
+                    return expr_dest, ret_type
+                else:
+                    self.error(*expr.loc, 'Cannot cast {} to {}', expr_type, ret_type)
         elif isinstance(expr, expressions.Array):
             # by_ref works, since arrays can be assigned to
             array_dest, array_type = self._compile_expression(expr.array, temp_context)

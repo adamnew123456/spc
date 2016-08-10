@@ -251,12 +251,7 @@ class Driver:
 
             (ref EXPRESSION)
             (deref EXPRESSION)
-            (ptr-to-int EXPRESSION)
-            (int-to-ptr EXPRESSION TYPE)
             (cast TYPE EXPRESSION)
-
-            (byte-to-int EXPRESSION)
-            (int-to-byte EXPRESSION)
 
             (array EXPRESSION EXPRESSION)
             (field EXPRESSION IDENTIFIER+)
@@ -321,39 +316,6 @@ class Driver:
                 loc = expr[0].line, expr[0].column
                 expr = self.parse_expression(expr[1])
                 return expressions.Dereference(loc, expr)
-            elif expr[0].content == 'ptr-to-int':
-                if len(expr) != 2:
-                    raise CompilerError.from_token(expr[0],
-                        'ptr-to-int must be of the form (ptr-to-int EXPR)')
-
-                loc = expr[0].line, expr[0].column
-                expr = self.parse_expression(expr[1])
-                return expressions.PointerToInt(loc, expr)
-            elif expr[0].content == 'int-to-ptr':
-                if len(expr) != 3:
-                    raise CompilerError.from_token(expr[0],
-                        'int-to-ptr must be of the form (int-to-ptr EXPR TYPE)')
-
-                loc = expr[0].line, expr[0].column
-                ret_type = self.parse_type(expr[2])
-                expr = self.parse_expression(expr[1])
-                return expressions.IntToPointer(loc, ret_type, expr)
-            elif expr[0].content == 'int-to-byte':
-                if len(expr) != 2:
-                    raise CompilerError.from_token(expr[0],
-                        'int-to-byte must be of the form (int-to-byte EXPR)')
-
-                loc = expr[0].line, expr[0].column
-                expr = self.parse_expression(expr[1])
-                return expressions.IntToByte(loc, expr)
-            elif expr[0].content == 'byte-to-int':
-                if len(expr) != 2:
-                    raise CompilerError.from_token(expr[0],
-                        'byte-to-int must be of the form (byte-to-int EXPR)')
-
-                loc = expr[0].line, expr[0].column
-                expr = self.parse_expression(expr[1])
-                return expressions.ByteToInt(loc, expr)
             elif expr[0].content == 'cast':
                 if len(expr) != 3:
                     raise CompilerError.from_token(expr[0],

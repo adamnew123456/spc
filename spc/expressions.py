@@ -31,12 +31,7 @@ Integer = namedtuple('Integer', ['loc', 'integer'])
 
 Reference = namedtuple('Reference', ['loc', 'expr'])
 Dereference = namedtuple('Dereference', ['loc', 'expr'])
-PointerToInt = namedtuple('PointerToInt', ['loc', 'expr'])
-IntToPointer = namedtuple('IntToPointer', ['loc', 'type', 'expr'])
 Cast = namedtuple('Cast', ['loc', 'type', 'expr'])
-
-ByteToInt = namedtuple('ByteToInt', ['loc', 'expr'])
-IntToByte = namedtuple('IntToByte', ['loc', 'expr'])
 
 Array = namedtuple('Array', ['loc', 'array', 'index'])
 Field = namedtuple('Field', ['loc', 'struct', 'fields'])
