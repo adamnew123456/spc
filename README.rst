@@ -49,7 +49,7 @@ two backends:
 - ``linux_x86``, for Linux running on 32-bit Intel processors. This has been
   tested with the GNU ``as`` assembler and the GNU ``ld`` linker.
 
-All the samples that come with the compiler can be compiled via ``build.py``:
+All the samples that come with the compiler can be compiled via ``build.py``::
 
     $ python3 build.py samples/mars_mips/fizzbuzz.lisp
     $ cd build/mars_mips
@@ -75,7 +75,7 @@ Running The Tests
 =================
 
 To ensure that the compiled programs behave in the expected way, use the
-testing script:
+testing script::
 
     $ python3 test.py >& LOG 
     $ grep @fail LOG
