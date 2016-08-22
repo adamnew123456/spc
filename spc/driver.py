@@ -284,6 +284,7 @@ class Driver:
 
             (EXPRESSION EXPRESSION*)
             INTEGER
+            CHAR
             IDENTIFIER
         """
         if isinstance(expr, list):
@@ -452,6 +453,9 @@ class Driver:
         elif lexer.is_integer(expr):
             loc = expr.line, expr.column
             return expressions.Integer(loc, expr.content)
+        elif lexer.is_char(expr):
+            loc = expr.line, expr.column
+            return expressions.Char(loc, expr.content)
         elif lexer.is_identifier(expr):
             loc = expr.line, expr.column
             return expressions.Variable(loc, expr.content)

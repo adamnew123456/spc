@@ -28,6 +28,7 @@ from collections import namedtuple
 Call = namedtuple('Call', ['loc', 'func', 'params'])
 Variable = namedtuple('Variable', ['loc', 'name'])
 Integer = namedtuple('Integer', ['loc', 'integer'])
+Char = namedtuple('Char', ['loc', 'character'])
 
 Reference = namedtuple('Reference', ['loc', 'expr'])
 Dereference = namedtuple('Dereference', ['loc', 'expr'])

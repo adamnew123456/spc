@@ -136,6 +136,9 @@ class MarsTemplates:
     def emit_load_int(self, reg, value):
         self._write_instr('    li {}, {}', reg, value)
 
+    def emit_load_byte(self, reg, value):
+        self._write_instr('    lb {}, {}', reg, value)
+
     def emit_load_static_addr(self, reg, name):
         self._write_instr('    la {}, {}', reg, mangle_label(name))
 

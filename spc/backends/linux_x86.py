@@ -124,6 +124,9 @@ class LinuxX86Templates:
     def emit_load_int(self, reg, value):
         self._write_instr('    movl ${}, {}', value, reg)
 
+    def emit_load_byte(self, reg, value):
+        self._write_instr('    movb ${}, {}', value, reg)
+
     def emit_load_static_addr(self, reg, name):
         self._write_instr('    movl ${}, {}', mangle_label(name), reg)
 

@@ -519,6 +519,19 @@ class Common32Backend(ContextMixin, ThirtyTwoMixin, BaseBackend):
             self.templates.emit_save_stack_word(tmp_reg, dest_offset)
 
             return dest_offset, types.Integer
+        elif isinstance(expr, expressions.Char):
+            if by_ref:
+                # Invalid - you can't assign to a character
+                self.error(*expr.loc, 'Cannot use an integer literal in a ref context')
+
+            dest_offset = temp_context.add_temp(self._type_size(types.Byte),
+                                                self._type_alignment(types.Byte))
+
+            tmp_reg = self.templates.tmp_regs[0]
+            self.templates.emit_load_byte(tmp_reg, expr.character.encode('ascii')[0])
+            self.templates.emit_save_stack_byte(tmp_reg, dest_offset)
+
+            return dest_offset, types.Byte
         elif isinstance(expr, expressions.Reference):
             # by_ref doesn't make sense, since this can't be assigned directly
             if by_ref:

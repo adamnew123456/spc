@@ -3,17 +3,20 @@ Lexes Lisp-like S-expression languages into one of a few tokens:
 
  - LEFT_PAREN
  - RIGHT_PAREN
- - NUM_INTEGER
+ - INTEGER
  - IDENTIFIER
  - STRING
+ - CHAR
 """
 from collections import deque, namedtuple
 import logging
 
+from spc.errors import CompilerError
+
 LOGGER = logging.getLogger('spc.lexer')
 
 (LEFT_PAREN, RIGHT_PAREN,
- INTEGER, IDENTIFIER, STRING) = range(5)
+ INTEGER, IDENTIFIER, STRING, CHAR) = range(6)
 
 Token = namedtuple('Token', ['type', 'content', 'filename', 'line', 'column'])
 
@@ -34,6 +37,12 @@ def is_string(token):
     Returns True if the token is a single string token.
     """
     return isinstance(token, Token) and token.type == STRING
+
+def is_char(token):
+    """
+    Returns True if the token is a single character token.
+    """
+    return isinstance(token, Token) and token.type == CHAR
 
 def to_list(lexer_stream):
     """
@@ -198,6 +207,19 @@ class Lexer:
 
         return self.get_token(STRING, buffer.encode('ascii'))
 
+    def read_char(self):
+        """
+        Reads in a single C-style character.
+        """
+        char = self.get()
+        if char == '\\':
+            escaped_char = '\\' + self.get()
+            raw_char = escaped_char.encode('ascii').decode('unicode_escape')
+        else:
+            raw_char = char
+
+        return self.get_token(CHAR, raw_char)
+
     def lex(self):
         """
         Lexes an input stream, producing a generator of Token objects.
@@ -221,6 +243,10 @@ class Lexer:
                 yield token
             elif char == '"':
                 token = self.read_string()
+                LOGGER.info('Token: %s', token)
+                yield token
+            elif char == "#":
+                token = self.read_char()
                 LOGGER.info('Token: %s', token)
                 yield token
             else:
