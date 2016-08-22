@@ -45,8 +45,8 @@
   (if (== x 0)
    ;; Trivial case - for 0, just put a 0 and close the buffer
    (block
-    (set (array buffer 0) 48)
-    (set (array buffer 1) 0))
+    (set (array buffer 0) #0)
+    (set (array buffer 1) #\0))
    
    (block
     (set index 0)
@@ -68,12 +68,12 @@
   (set index buffer)
   (set accum 0)
 
-  (while (&& (>= (deref index) 48)
-             (<= (deref index) 57))
+  (while (&& (>= (deref index) #0)
+             (<= (deref index) #9))
    (block
     (set accum (* accum 10))
     (set accum 
-     (+ accum (- (deref index) 48)))
+     (+ accum (- (deref index) #0)))
 
     (set index (+ index 1))))
 

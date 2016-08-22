@@ -65,6 +65,8 @@
 ;; their own code:
 ;;
 ;;    (*error STRING)
+;;
+;; Byte literals include C-style escapes, and are prefixed with #
 
 (*if (platform? "mars" "mips")
  (require "arch/mars_mips.lisp")
@@ -201,8 +203,8 @@
   (set list (cast linked-ints-ptr 0))
   (set read-value 1)
   
-  (set (array newline 0) 10)
-  (set (array newline 1) 0)
+  (set (array newline 0) #\n)
+  (set (array newline 1) #\0)
 
   (while (!= read-value 0)
    (block
