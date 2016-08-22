@@ -12,6 +12,13 @@
 @empty
 @go
 
+@file samples/linux_x86/byte.lisp
+@output
+@empty
+@error
+@empty
+@go
+
 @file samples/linux_x86/cmp.lisp
 @output
 @empty

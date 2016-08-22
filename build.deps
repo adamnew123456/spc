@@ -6,6 +6,7 @@ lib/io.lisp: lib/str.lisp
 lib/str.lisp:
 
 samples/linux_x86/arith.lisp: * lib/assert.lisp
+samples/linux_x86/byte.lisp: * lib/assert.lisp
 samples/linux_x86/cached-require.lisp: * lib/assert.lisp
 samples/linux_x86/cmp.lisp: * lib/assert.lisp
 samples/linux_x86/coercion.lisp: *
@@ -24,6 +25,7 @@ samples/linux_x86/switch.lisp: * lib/assert.lisp
 samples/linux_x86/unaligned-args.lisp:
 
 samples/mars_mips/arith.lisp: * lib/assert.lisp
+samples/mars_mips/byte.lisp: * lib/assert.lisp
 samples/mars_mips/cached-require.lisp: * lib/assert.lisp
 samples/mars_mips/cmp.lisp: * lib/assert.lisp
 samples/mars_mips/coercion.lisp: *
