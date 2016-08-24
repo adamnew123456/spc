@@ -14,7 +14,7 @@
   (set (array buff 100) 0)
   (linux.read 0 buff 100)
 
-  (io.print dquote)
+  (io.printc #')
   (io.print buff)
-  (io.print dquote)
-  (io.print newline)))
+  (io.printc #')
+  (io.printc #\n)))
