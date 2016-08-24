@@ -1,7 +1,6 @@
 (require "lib/io.lisp")
 (require "lib/str.lisp")
 (declare
-  (newline (ascii "\n"))
   (fizz (ascii "Fizz"))
   (buzz (ascii "Buzz"))
   (main (function byte)))
@@ -27,5 +26,5 @@
         (if even3 (io.print fizz)) 
         (if even5 (io.print buzz)))) 
       
-      (io.print newline) 
+      (io.printc #\n)
       (set i (+ i 1))))))

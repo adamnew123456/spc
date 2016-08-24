@@ -6,11 +6,20 @@
 (require "lib/str.lisp")
 
 (declare
+ (io.printc (function byte byte))
  (io.print (function byte string))
  (io.println (function byte string))
  (io.read-int (function integer)))
 
-(export 'io.print 'io.println 'io.read-int)
+(export 'io.printc 'io.print 'io.println 'io.read-int)
+
+(define io.printc (char)
+ (declare
+  (buffer (array-of byte 2)))
+ (block
+  (set (array buffer 0) char)
+  (set (array buffer 1) #\0)
+  (io.print buffer)))
 
 (define io.print (str)
  (declare)
@@ -22,11 +31,10 @@
    (mars.print-string str))))
 
 (define io.println (str)
- (declare
-  (newline (ascii "\n")))
+ (declare)
  (block
   (io.print str)
-  (io.print newline)))
+  (io.printc #\n)))
 
 (*if (platform? "linux" "*")
  (define io.read-int ()

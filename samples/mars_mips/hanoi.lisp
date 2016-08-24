@@ -5,7 +5,6 @@
  (move-disk (ascii "Move disk "))
  (from-peg (ascii " from Peg "))
  (to-peg (ascii " to Peg "))
- (newline (ascii "\n"))
 
  (hanoi (function byte
          integer integer integer integer))
@@ -32,7 +31,7 @@
   (str.int->str dest intbuff)
   (io.print intbuff)
 
-  (io.print newline)
+  (io.printc #\n)
 
   (if (> disk 1)
    (hanoi temp dest src (- disk 1)))))
