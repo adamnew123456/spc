@@ -438,10 +438,11 @@ class Common32Backend(ContextMixin, ThirtyTwoMixin, BaseBackend):
         if isinstance(expr, expressions.Variable):
             # by_ref obviously makes sense - otherwise, assignment to a variable
             # couldn't work at all!
+            real_name = expr.name
 
-            owning_scope = self.ctx_values.find(expr.name)
+            owning_scope = self.ctx_values.find(real_name)
             if owning_scope is None:
-                self.error(*expr.loc, 'No variable "{}" in scope', expr.name)
+                self.error(*expr.loc, 'No variable "{}" in scope', real_name)
 
             type_of = owning_scope[expr.name]
             if isinstance(type_of, types.TypeName):
@@ -453,14 +454,15 @@ class Common32Backend(ContextMixin, ThirtyTwoMixin, BaseBackend):
                     # it doesn't make sense to even try
                     self.error(*expr.loc, 'Cannot use function in a ref context')
 
+                real_name = type_of.name
                 type_of = types.func_decl_to_ptr(type_of)
 
                 # Set the flag anyway, since trying to load a function 
                 # 'by value' would load code, which doesn't make sense
-                self._write_comment('  Variable load: function pointer {}', expr.name)
+                self._write_comment('  Variable load: function pointer {}', real_name)
                 by_ref = True
 
-            if (isinstance(type_of, types.PointerTo) and expr.name in self.ctx_arrays):
+            if (isinstance(type_of, types.PointerTo) and real_name in self.ctx_arrays):
                 # Arrays are promoted to by_ref, but for a special reason - the
                 # want to be pointers (thus a non-by-ref load should get back
                 # the address) but are more like values. Making them by_ref
@@ -484,12 +486,12 @@ class Common32Backend(ContextMixin, ThirtyTwoMixin, BaseBackend):
 
             if owning_scope.is_global:
                 # Global variables are somewhere in .data land, labeled by their name
-                self.templates.emit_load_static_addr(tmp_reg, expr.name)
+                self.templates.emit_load_static_addr(tmp_reg, real_name)
             elif owning_scope.is_builtin:
                 self.error(*expr.loc, 'Builtin values cannot be used, except to be called')
             else:
                 # Local variables are on the stack
-                stack_offset = self.ctx_stack[expr.name]
+                stack_offset = self.ctx_stack[real_name]
                 self.templates.emit_load_stack_addr(tmp_reg, stack_offset)
 
             if by_ref:

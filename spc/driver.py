@@ -74,7 +74,7 @@ class Driver:
         else:
             return types.TypeName(chunk.content)
 
-    def parse_decl_type(self, chunk):
+    def parse_decl_type(self, chunk, def_name):
         """
         Parses normal types, in addition to the forms:
 
@@ -126,7 +126,7 @@ class Driver:
 
             return_type = self.parse_type(chunk[1])
             params = tuple(self.parse_type(param) for param in chunk[2:])
-            return types.FunctionDecl(return_type, params)
+            return types.FunctionDecl(def_name, return_type, params)
         elif chunk[0].content == 'struct':
             if len(chunk) < 2:
                 raise CompilerError.from_token(chunk[1],
@@ -201,7 +201,7 @@ class Driver:
                     'Each declaration must start with an identifier')
 
             identifier = element[0].content
-            declaration = self.parse_decl_type(element[1])
+            declaration = self.parse_decl_type(element[1], identifier)
 
             decl_line = element[0].line
             decl_col = element[0].column

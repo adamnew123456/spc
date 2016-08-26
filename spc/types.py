@@ -21,8 +21,11 @@ TypeName = namedtuple('TypeName', ['name'])
 Struct = namedtuple('Struct', ['fields'])
 
 # This is used merely to record that a function has been declared - the
-# actual reified type is FunctionPointer
-FunctionDecl = namedtuple('FunctionDecl', ['return_type', 'params'])
+# actual reified type is FunctionPointer.
+#
+# This does differ in that it has its own name, though, because it is loaded
+# by label name
+FunctionDecl = namedtuple('FunctionDecl', ['name', 'return_type', 'params'])
 
 # Like FunctionDecl - the actual reified type is a pointer, this is just
 # a declaration to allocate a certain amount of space somewhere
