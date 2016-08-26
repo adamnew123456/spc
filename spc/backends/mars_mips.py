@@ -98,8 +98,8 @@ class MarsTemplates:
         if isinstance(type_of, types.FunctionDecl):
             self._write_instr('.globl {}', mangle_label(name))
         else:
-            if name in self.backend.current_context.array_bound:
-                size = self.backend.current_context.array_bound[name]
+            if name in self.backend.ctx_arrays:
+                size = self.backend.ctx_arrays[name]
             else:
                 size = self.backend._type_size(name)
 

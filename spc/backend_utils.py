@@ -270,6 +270,34 @@ class ContextMixin:
         self.current_context = Context(self.def_vals, self.def_types, 
             SymbolTable(), None)
 
+    @property
+    def ctx_values(self):
+        """
+        Returns the current context's value symbols.
+        """
+        return self.current_context.value_defns
+
+    @property
+    def ctx_types(self):
+        """
+        Returns the current context's type symbols.
+        """
+        return self.current_context.type_defns
+
+    @property
+    def ctx_arrays(self):
+        """
+        Returns the current context's array information.
+        """
+        return self.current_context.array_bound
+
+    @property
+    def ctx_stack(self):
+        """
+        Returns the current context's stack information.
+        """
+        return self.current_context.func_stack
+
     def _value_is_defined(self, name):
         """
         Returns True if the given variable is defined in the current scope, or
@@ -277,7 +305,7 @@ class ContextMixin:
 
         This is for the static expression processor function, var-def?
         """
-        return name in self.current_context.value_defns
+        return name in self.ctx_values
 
     def _type_is_defined(self, name):
         """
@@ -286,7 +314,7 @@ class ContextMixin:
 
         This is for the static expression processor function, var-def?
         """
-        return name in self.current_context.type_defns
+        return name in self.ctx_types
 
     def _make_func_stack(self):
         raise NotImplementedError
@@ -315,13 +343,20 @@ class ContextMixin:
         Resolves a type name into a concrete type.
         """
         try:
-            return types.resolve_name(name, self.current_context.type_defns)
+            return types.resolve_name(name, self.ctx_types)
         except RecursionError:
             self.error(self.line, self.col,
                 'Type aliases too deep, when resolving "{}"', name)
         except KeyError as exn:
             self.error(self.line, self.col, 
                 'Invalid type "{}"', str(exn))
+
+    def _verify_types(self):
+        """
+        Verifies all the types across all this currnet context's symbols.
+        """
+        self._check_valid_types(type_obj for (_, type_obj) in self.ctx_values)
+        self._check_valid_types(type_obj for (_, type_obj) in self.ctx_types)
 
 class ThirtyTwoMixin:
     """
