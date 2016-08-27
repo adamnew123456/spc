@@ -103,6 +103,8 @@ def resolve_name(name, types, MAX_DEPTH=25):
     while isinstance(name, TypeName):
         current_depth += 1
         name = types[name.name]
+        if not types.is_visible(name):
+            raise PermissionError(name)
 
         if current_depth > MAX_DEPTH:
             raise RecursionError
