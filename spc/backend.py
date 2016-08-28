@@ -55,6 +55,11 @@ class EmptyBackend:
         declaration types.
         """
 
+    def handle_namespace(self, namespace);
+        """
+        Called to process a namespace statement.
+        """
+
     def handle_require(self, filename):
         """
         Called to process a require statement.
