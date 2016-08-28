@@ -135,7 +135,15 @@ class SearchProxy:
         cannot resolve it.
         """
         visible_list = self.meta_get(name, 'visible', set())
-        return visible_list is VISIBLE_ALL or self.search_path[0] in visible
+
+        if visible_list is VISIBLE_ALL:
+            return True
+
+        for namespace in self.search_path:
+            if namespace in visible_list:
+                return True
+
+        return False
 
     def __getitem__(self, name):
         full_ident = self.resolve(name)
