@@ -80,8 +80,6 @@ def split_namespace(ident):
     (None, 'foo')
     >>> split_namespace('foo:bar')
     ('foo', 'bar')
-    >>> split_namespace(':bar')
-    ('', 'bar')
     """
     if ':' in ident:
         return (None, ident)
@@ -91,6 +89,17 @@ def split_namespace(ident):
             return ('', ident)
         else:
             return tuple(result)
+
+def has_namespace(ident):
+    """
+    Returns True if a namespace is given with the identifier, False otherwise.
+
+    >>> has_namespace('foo')
+    False
+    >>> has_namespace('foo:bar')
+    True
+    """
+    return ':' in ident
 
 # Note the space - this isn't something that can be represented in the language,
 # so it makes a good escape
@@ -140,6 +149,10 @@ class SearchProxy:
             full_ident = name
 
         self.names[name] = value
+
+    def __contains__(self, name):
+        full_ident = self.resolve(name)
+        return full_ident in self.names
 
     def meta_get(self, name, attr, default=None):
         """
