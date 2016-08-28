@@ -178,10 +178,12 @@ class RequireProcessor(EmptyBackend):
             self.context.values[name] = types.PointerTo(types.Byte)
             self.context.values.meta_set(name, 'visible', {self.file_namespace})
             self.context.meta_set(name, 'array', True)
+            self.context.values.meta_set(name, 'global', True)
         elif was_type_name or isinstance(decl_type, types.RAW_TYPES):
             was_array = isinstance(decl_type, types.ArrayOf)
             self.context.values[name] = types.decay_if_array(decl_type)
             self.context.values.meta_set(name, 'visible', {self.file_namespace})
+            self.context.values.meta_set(name, 'global', True)
 
             if was_array:
                 self.context.meta_set(name, 'array', True)
@@ -191,6 +193,7 @@ class RequireProcessor(EmptyBackend):
         elif isinstance(decl_type, types.FunctionDecl):
             self.context.values[name] = decl_type
             self.context.values.meta_set(name, 'visible', {self.file_namespace})
+            self.context.values.meta_set(name, 'global', True)
         elif isinstance(decl_type, types.AliasDef):
             self.context.types[name] = decl_type
             self.context.types.meta_set(name, 'visible', {self.file_namespace})
