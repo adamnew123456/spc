@@ -61,6 +61,8 @@ types_meta = {
     },
 }
 
+registered_namespaces = set()
+
 def join_namespace(namespace, ident):
     """
     Joins a namespace and a bare identifier into a full identifier.
@@ -203,6 +205,19 @@ class Context:
 
         self.values = SearchProxy(values, values_meta, self.search_path)
         self.types = SearchProxy(types, types_meta, self.search_path)
+
+    def register(self, name):
+        """
+        Registers the given named namespace, and then returns the result of
+        'enter'ing it.
+        
+        This ensure that all namespaces used in the program are unique - if
+        this namespace is not, this function will raise a ValueError.
+        """
+        if name in self.registered_namespaces:
+            raise ValueError(name)
+
+        return self.enter(name)
 
     def enter(self, name=None):
         """

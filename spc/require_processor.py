@@ -129,7 +129,7 @@ class RequireProcessor(EmptyBackend):
                 "Namespace already assigned")
 
         self.file_namespace = namespace
-        self.context = self.context.enter(namespace)
+        self.context = self.context.register(namespace)
 
     def handle_require(self, filename):
         """
