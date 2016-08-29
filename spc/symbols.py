@@ -1,9 +1,12 @@
 """
 This contains all the defined values and types within this compile run.
 """
-from itertools import count
+import itertools
+import logging
 
 from . import types
+
+LOGGER = logging.getLogger('spc.symbols')
 
 #
 # This module comes out of the realization that namespaces are fundamentally
@@ -117,7 +120,7 @@ def namespace_func_decl(func_decl, namespace):
 
 # Note the space - this isn't something that can be represented in the language,
 # so it makes a good escape
-NS_GENERATOR = (' compiler_{}'.format(value) for counter in itertools.count())
+NS_GENERATOR = (' compiler_{}'.format(counter) for counter in itertools.count())
 
 class SearchProxy:
     """
@@ -134,13 +137,20 @@ class SearchProxy:
         through the search path.
         """
         ns, ident = split_namespace(name)
+
+        LOGGER.info('Resolving name %s', name)
         if ns is None:
             for namespace in self.search_path:
                 full_ident = join_namespace(namespace, ident)
                 if full_ident in self.names:
+                    LOGGER.info(' - Resolved: %s', namespace)
                     return full_ident
+                else:
+                    LOGGER.info(' - Not found: %s', namespace)
+
             raise KeyError(name)
         else:
+            LOGGER.info('Fully qualified already')
             return name
 
     def is_visible(self, name):
@@ -171,6 +181,7 @@ class SearchProxy:
         else:
             full_ident = name
 
+        LOGGER.info(':: Setting "%s" ("%s") to %s', name, full_ident, value)
         self.names[full_ident] = value
 
     def __contains__(self, name):
@@ -227,7 +238,7 @@ class Context:
         This ensure that all namespaces used in the program are unique - if
         this namespace is not, this function will raise a ValueError.
         """
-        if name in self.registered_namespaces:
+        if name in registered_namespaces:
             raise ValueError(name)
 
         return self.enter(name)
