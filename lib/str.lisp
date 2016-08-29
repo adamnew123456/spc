@@ -1,13 +1,14 @@
+(namespace str)
 (declare 
- (str.rev (function byte string))
- (str.len (function integer string))
- (str.int->str (function byte integer string))
- (str.str->int (function integer string)))
+ (rev (function byte string))
+ (len (function integer string))
+ (int->str (function byte integer string))
+ (str->int (function integer string)))
 
-(export 'str.rev 'str.len 'str.int->str 'str.str->int)
+(export 'rev 'len 'int->str 'str->int)
     
 ;; Computes the length of the given string
-(define str.len (str)
+(define len (str)
   (declare
    (i integer))
   (block
@@ -18,7 +19,7 @@
    (return i)))
 
 ;; Reverses the given string
-(define str.rev (str)
+(define rev (str)
  (declare
   (i integer)
   (j integer)
@@ -26,7 +27,7 @@
 
  (block
   (set i 0)
-  (set j (- (str.len str) 1))
+  (set j (- (len str) 1))
 
   (while (> j i)
    (block
@@ -37,7 +38,7 @@
     (set i (+ i 1))
     (set j (- j 1))))))
 
-(define str.int->str (x buffer)
+(define int->str (x buffer)
  (declare
   (index integer))
 
@@ -57,9 +58,9 @@
       (set x (/ x 10))))
 
     (set (array buffer index) 0)
-    (str.rev buffer)))))
+    (rev buffer)))))
 
-(define str.str->int (buffer)
+(define str->int (buffer)
  (declare
   (accum integer)
   (index string))
