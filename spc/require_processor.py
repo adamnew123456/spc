@@ -192,7 +192,11 @@ class RequireProcessor(EmptyBackend):
             self.context.types[name] = decl_type
             self.context.types.meta_set(name, 'visible', {self.file_namespace})
         elif isinstance(decl_type, types.FunctionDecl):
-            self.context.values[name] = decl_type
+            full_decl_type = symbols.namespace_func_decl(
+                    decl_type, 
+                    self.file_namespace)
+            self.context.values[name] = full_decl_type
+
             self.context.values.meta_set(name, 'visible', {self.file_namespace})
             self.context.values.meta_set(name, 'global', True)
         elif isinstance(decl_type, types.AliasDef):
