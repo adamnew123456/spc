@@ -220,7 +220,7 @@ class RequireProcessor(EmptyBackend):
                     raise CompilerError(self.filename, self.line, self.col,
                         'Cannot export undefined value "{}"')
 
-                self.exported_values.add(self.context.resolve(name))
+                self.exported_values.add(self.context.values.resolve(name))
             elif name[0] == '*':
                 name = name[1:]
                 try:
@@ -229,7 +229,7 @@ class RequireProcessor(EmptyBackend):
                     raise CompilerError(self.filename, self.line, self.col,
                         'Cannot export undefined type "{}"', name)
 
-                self.exported_types.add(self.context.resolve(name))
+                self.exported_types.add(self.context.types.resolve(name))
             else:
                 raise CompilerError(self.filename, self.line, self.col,
                     "Exported name must be prefixed with ' or *")
