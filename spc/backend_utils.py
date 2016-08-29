@@ -392,12 +392,7 @@ class ContextMixin:
         Verifies all the types across all this current context's symbols.
         """
         self.verify_context.verify(self)
-
-        # The reason for not allowing the verification to be done twice, is
-        # that this isn't needed - the language that we're compiling
-        # requires all declarations to be done at the start of a function
-        # or a file
-        self.verify_context = None
+        self.verify_context = VerificationContext()
 
 class ThirtyTwoMixin:
     """
