@@ -18,19 +18,12 @@ from ..util import (
 
 LOGGER = logging.getLogger('spc.common32')
 
-BUILTIN_TYPES = SymbolTable(is_builtin=True)
-BUILTIN_TYPES['string'] = types.PointerTo(types.Byte)
-
-BUILTIN_FUNCTIONS = SymbolTable(is_builtin=True)
-
 class Common32Backend(ContextMixin, ThirtyTwoMixin, BaseBackend):
     """
     Emits MIPS assembly code compatible with the MARS simulator.
     """
     def __init__(self, templates, output, filename, is_library):
-        BaseBackend.__init__(self, output, filename, is_library,
-                BUILTIN_FUNCTIONS, BUILTIN_TYPES)
-
+        BaseBackend.__init__(self, output, filename, is_library)
         ContextMixin.__init__(self)
 
         self.templates = templates
