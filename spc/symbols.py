@@ -139,6 +139,7 @@ class SearchProxy:
                 full_ident = join_namespace(namespace, ident)
                 if full_ident in self.names:
                     return full_ident
+            raise KeyError(name)
         else:
             return name
 
