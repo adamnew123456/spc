@@ -4,7 +4,7 @@ Utility functions and classes shared by multiple backends
 from collections import namedtuple
 import logging
 
-from .symbols import SymbolTable
+from . import symbols
 from . import types
 
 LOGGER = logging.getLogger('spc.backend_utils')
@@ -282,8 +282,8 @@ class VerificationContext:
         """
         Verifies all the definitions against the backend.
         """
-        self._check_valid_types(backend.ctx_types[name] for name in self.types)
-        self._check_valid_types(backend.ctx_values[name] for name in self.values)
+        backend._check_valid_types(backend.ctx_types[name] for name in self.types)
+        backend._check_valid_types(backend.ctx_values[name] for name in self.values)
 
 class ContextMixin:
     """
@@ -363,7 +363,7 @@ class ContextMixin:
         old_context = self.current_context
         self.parent_contexts.append(old_context)
 
-        self.current_context = Context(
+        self.current_context = NameContext(
             self.current_context.symbol_ctx.enter(),
             self._make_func_stack())
 
