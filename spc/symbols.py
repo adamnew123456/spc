@@ -103,6 +103,18 @@ def has_namespace(ident):
     """
     return ':' in ident
 
+def namespace_func_decl(func_decl, namespace):
+    """
+    Adds a namespace to a function declaration's name.
+
+    This is necessary since FunctionDecl objects come out of the driver
+    without a namespace attached (it would be too much to ask of the
+    parser to do namespace resolution), so we have to do it later on.
+    """
+    full_name = join_namespace(namespace, func_decl.name)
+    return func_decl._replace(name=full_name)
+
+
 # Note the space - this isn't something that can be represented in the language,
 # so it makes a good escape
 NS_GENERATOR = (' compiler_{}'.format(value) for counter in itertools.count())
