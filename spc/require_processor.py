@@ -203,17 +203,27 @@ class RequireProcessor(EmptyBackend):
         Moves the exported names into the export list, so that they are
         visible to the main backend.
         """
-        for name in names:
-            # Exporting from a required module requires an additional wrapper,
-            # to point back to the original. That may happen at some point, but
-            # right now, that isn't allowed
-            namespace, _ = symbolss.split_namespace(self.context.resolve(name[1:]))
+        def check_non_foreign(name, context):
+            """
+            Ensures that the given name doesn't resolve to an identifier
+            that belongs to a foreign namespace.
+
+            Allowing these to be re-exported would lead to 'origination 
+            issues', since moving them from one namespace to another would
+            lose the original name. Since this is required for globals,
+            that would have to be stored somewhere, which complicates 
+            things.
+            """
+            namespace, _ = symbols.split_namespace(context.resolve(name))
             if namespace != self.file_namespace:
                 raise CompilerError(self.filename, self.line, self.col,
-                    'Cannot re-export foreign value or type "{}"', name[1:])
+                    'Cannot re-export foreign value or type "{}"', name)
 
+        for name in names:
             if name[0] == "'":
                 name = name[1:]
+                check_non_foreign(name, self.context.names)
+
                 try:
                     type_obj = self.context.values[name]
                 except KeyError:
@@ -223,6 +233,8 @@ class RequireProcessor(EmptyBackend):
                 self.exported_values.add(self.context.values.resolve(name))
             elif name[0] == '*':
                 name = name[1:]
+                check_non_foreign(name, self.context.types)
+
                 try:
                     type_decl = self.context.types[name]
                 except KeyError:
