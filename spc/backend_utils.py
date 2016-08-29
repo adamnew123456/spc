@@ -340,7 +340,8 @@ class ContextMixin:
 
         This is for the static expression processor function, var-def?
         """
-        return name in self.ctx_values
+        return (name in self.ctx_values and
+            self.ctx_values.is_visible(name))
 
     def _type_is_defined(self, name):
         """
@@ -349,7 +350,8 @@ class ContextMixin:
 
         This is for the static expression processor function, var-def?
         """
-        return name in self.ctx_types
+        return (name in self.ctx_types and
+            self.ctx_types.is_visible(name))
 
     def _make_func_stack(self):
         raise NotImplementedError
