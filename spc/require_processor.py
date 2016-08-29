@@ -46,6 +46,7 @@ class RequireProcessor(EmptyBackend):
     def __init__(self, filename, real_backend):
         self.real_backend = real_backend
         self.in_function = False
+        self.import_list = set()
 
         self.exported_values = set()
         self.exported_types = set()
@@ -177,7 +178,7 @@ class RequireProcessor(EmptyBackend):
         if isinstance(decl_type, types.StringLiteral):
             self.context.values[name] = types.PointerTo(types.Byte)
             self.context.values.meta_set(name, 'visible', {self.file_namespace})
-            self.context.meta_set(name, 'array', True)
+            self.context.values.meta_set(name, 'array', True)
             self.context.values.meta_set(name, 'global', True)
         elif was_type_name or isinstance(decl_type, types.RAW_TYPES):
             was_array = isinstance(decl_type, types.ArrayOf)
@@ -186,7 +187,7 @@ class RequireProcessor(EmptyBackend):
             self.context.values.meta_set(name, 'global', True)
 
             if was_array:
-                self.context.meta_set(name, 'array', True)
+                self.context.values.meta_set(name, 'array', True)
         elif isinstance(decl_type, types.Struct):
             self.context.types[name] = decl_type
             self.context.types.meta_set(name, 'visible', {self.file_namespace})
@@ -222,7 +223,7 @@ class RequireProcessor(EmptyBackend):
         for name in names:
             if name[0] == "'":
                 name = name[1:]
-                check_non_foreign(name, self.context.names)
+                check_non_foreign(name, self.context.values)
 
                 try:
                     type_obj = self.context.values[name]
