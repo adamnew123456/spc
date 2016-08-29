@@ -3,7 +3,6 @@ This is the base backend, which contains parts which should be common to most
 backends.
 """
 from .errors import CompilerError
-from .symbols import SymbolTable
 from . import types
 
 class EmptyBackend:
@@ -55,7 +54,7 @@ class EmptyBackend:
         declaration types.
         """
 
-    def handle_namespace(self, namespace);
+    def handle_namespace(self, namespace):
         """
         Called to process a namespace statement.
         """
