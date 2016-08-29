@@ -83,10 +83,10 @@ def split_namespace(ident):
     >>> split_namespace('foo:bar')
     ('foo', 'bar')
     """
-    if ':' in ident:
+    if ':' not in ident:
         return (None, ident)
     else:
-        result = ident.split()
+        result = ident.split(':', 1)
         if len(result) == 1:
             return ('', ident)
         else:
