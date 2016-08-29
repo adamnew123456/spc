@@ -56,6 +56,7 @@ class LinuxX86Templates:
 
     def __init__(self):
         self.backend = None
+        self.main_func = None
 
     def make_func_stack(self):
         return LinuxX86Stack(self.backend)
@@ -89,10 +90,14 @@ class LinuxX86Templates:
     def emit_prog_header(self):
         self._write_instr('.global _start')
         self._write_instr('_start:')
-        self._write_instr('    call {}', mangle_label('main'))
+        self._write_instr('    call _main_stub')
         self._write_instr('    movl $1, %eax')
         self._write_instr('    movl $0, %ebx')
         self._write_instr('    int $0x80')
+
+    def emit_prog_footer(self, main_label):
+        self._write_instr('_main_stub:')
+        self._write_instr('    jmp {}', main_label)
 
     def emit_export(self, name, type_of):
         self._write_instr('.globl {}', mangle_label(name))

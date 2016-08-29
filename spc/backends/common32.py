@@ -10,7 +10,7 @@ from ..backend_utils import (
 )
 from .. import expressions
 from ..require_processor import RequireProcessor
-from ..symbols import SymbolTable
+from .. import symbols
 from .. import types
 from ..util import (
     make_label_maker, mangle_label, unescape_bytes
@@ -69,6 +69,13 @@ class Common32Backend(ContextMixin, ThirtyTwoMixin, BaseBackend):
         if self.undefined_funcs:
             self.error(0, 0,
                 'Functions not defined: {}', self.undefined_funcs)
+
+        if not self.library:
+            if self.main_function is None:
+                self.error(0, 0,
+                    'No main function defined in non-library file')
+
+            self.templates.emit_prog_footer(mangle_label(self.main_function))
 
     def handle_decl_block_start(self):
         """
