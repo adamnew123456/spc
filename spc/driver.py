@@ -226,11 +226,11 @@ class Driver:
 
         self.backend.update_position(namespace[0].line, namespace[0].column)
 
-        ns_name = namespace[1]
-        if not lexer.is_identifier(ns_name):
+        if not lexer.is_identifier(namespace[0]):
             raise CompilerError.from_token(namespace[0],
                 'namespace must take the form (namespace IDENTIFIER)')
 
+        ns_name = namespace[1].content
         if symbols.has_namespace(ns_name):
             raise CompilerError.from_token(namespace[0],
                 'Cannot have nested namespaces in namespace declaration')
