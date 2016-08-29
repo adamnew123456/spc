@@ -171,7 +171,7 @@ class SearchProxy:
         else:
             full_ident = name
 
-        self.names[name] = value
+        self.names[full_ident] = value
 
     def __contains__(self, name):
         full_ident = self.resolve(name)
