@@ -1,3 +1,4 @@
+(namespace read-test)
 (require "lib/io.lisp")
 (require "arch/linux_x86.lisp")
 
@@ -12,9 +13,9 @@
  (declare)
  (block
   (set (array buff 100) 0)
-  (linux.read 0 buff 100)
+  (linux:read 0 buff 100)
 
-  (io.printc #')
-  (io.print buff)
-  (io.printc #')
-  (io.printc #\n)))
+  (io:printc #')
+  (io:print buff)
+  (io:printc #')
+  (io:printc #\n)))
