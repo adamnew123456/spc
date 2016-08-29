@@ -185,16 +185,12 @@ class BaseBackend:
     # Override this with the appropriate for of comment for the backend
     comment_fmt = '# {}'
 
-    def __init__(self, output, filename, is_library, 
-                builtin_functions, builtin_types):
+    def __init__(self, output, filename, is_library):
         self.library = is_library
         self.filename = filename
         self.output_stream = output
         self.line = 0
         self.col = 0
-
-        self.def_vals = SymbolTable(builtin_functions, is_global=True)
-        self.def_types = SymbolTable(builtin_types, is_global=True)
 
         self.if_labels = []
         self.while_labels = []
