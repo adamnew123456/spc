@@ -52,7 +52,7 @@ def func_decl_to_ptr(func_decl):
     """
     Converts a function declaration to a pointer.
     """
-    return FunctionPointer(*func_decl)
+    return FunctionPointer(func_decl.return_type, func_decl.params)
 
 class Alignment(Enum):
     Up = 1
