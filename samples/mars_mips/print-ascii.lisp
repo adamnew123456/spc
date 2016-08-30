@@ -1,3 +1,4 @@
+(namespace print-ascii-test)
 (require "arch/mars.lisp")
     
 (declare
@@ -11,4 +12,4 @@
   (set (array text 1) 10) ;; \n
   (set (array text 2) 0) ;; \0
 
-  (mars.print-string text)))
+  (mars:print-string text)))

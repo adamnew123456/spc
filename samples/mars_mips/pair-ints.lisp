@@ -1,3 +1,4 @@
+(namespace pair-ints-test)
 (require "lib/assert.lisp")
 (declare
  (int-pair
@@ -16,5 +17,5 @@
   (set (field pair a) 1)
   (set (field pair b) 2)
 
-  (assert (== (field pair a) 1) msg.1)
-  (assert (== (field pair b) 2) msg.2)))
+  (assert:assert (== (field pair a) 1) msg.1)
+  (assert:assert (== (field pair b) 2) msg.2)))

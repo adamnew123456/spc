@@ -1,3 +1,4 @@
+(namespace ptr-arith-test)
 (require "lib/assert.lisp")
 (declare
   (main (function byte)))
@@ -17,13 +18,13 @@
   (set (array x 2) 3)
 
   (set ptr x)
-  (assert (== (deref ptr) 1) msg.1)
+  (assert:assert (== (deref ptr) 1) msg.1)
 
   (set ptr (+ ptr 1))
-  (assert (== (deref ptr) 2) msg.2)
+  (assert:assert (== (deref ptr) 2) msg.2)
 
   (set ptr (+ ptr 1))
-  (assert (== (deref ptr) 3) msg.3)
+  (assert:assert (== (deref ptr) 3) msg.3)
 
   (set ptr (- ptr 2))
-  (assert (== (deref ptr) 1) msg.4)))
+  (assert:assert (== (deref ptr) 1) msg.4)))

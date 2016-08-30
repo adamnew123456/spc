@@ -1,4 +1,4 @@
-(require "lib/io.lisp")
+(namespace static-if-test)
 (require "lib/assert.lisp")
 
 (declare
@@ -22,8 +22,8 @@
 
 (define main ()
  (declare
-  (msg.1 (ascii "is-linux should be 0"))
-  (msg.2 (ascii "is-mars should be 1")))
+  (msg.1 (ascii "is-linux should be 1"))
+  (msg.2 (ascii "is-mars should be 0")))
  (block
-  (assert (== 0 (is-linux)) msg.1)
-  (assert (== 1 (is-mars)) msg.2)))
+  (assert:assert (== 0 (is-linux)) msg.1)
+  (assert:assert (== 1 (is-mars)) msg.2)))

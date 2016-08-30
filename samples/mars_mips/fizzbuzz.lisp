@@ -1,3 +1,4 @@
+(namespace fizzbuzz-test)
 (require "lib/io.lisp")
 (require "lib/str.lisp")
 (declare
@@ -20,11 +21,11 @@
 
       (if (! (|| even3 even5)) 
        (block
-        (str.int->str i intbuff)
-        (io.print intbuff))
+        (str:int->str i intbuff)
+        (io:print intbuff))
        (block 
-        (if even3 (io.print fizz)) 
-        (if even5 (io.print buzz)))) 
+        (if even3 (io:print fizz)) 
+        (if even5 (io:print buzz)))) 
       
-      (io.printc #\n) 
+      (io:printc #\n)
       (set i (+ i 1))))))

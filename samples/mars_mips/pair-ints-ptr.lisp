@@ -1,3 +1,4 @@
+(namespace pair-ints-ptr-test)
 (require "lib/assert.lisp")
 (declare
  (int-pair
@@ -20,5 +21,5 @@
   (set (field (deref pair) a) 1)
   (set (field (deref pair) b) 2)
 
-  (assert (== (field (deref pair) a) 1) msg.1)
-  (assert (== (field (deref pair) b) 2) msg.1)))
+  (assert:assert (== (field (deref pair) a) 1) msg.1)
+  (assert:assert (== (field (deref pair) b) 2) msg.1)))

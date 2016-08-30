@@ -1,3 +1,4 @@
+(namespace hello-local-test)
 (require "lib/io.lisp")
 (declare
  (main (function byte)))
@@ -6,4 +7,4 @@
  (declare
   (hello-world (ascii "Hello, World!\n")))
  (block
-  (io.print hello-world)))
+  (io:print hello-world)))

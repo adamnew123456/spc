@@ -1,3 +1,4 @@
+snamespace linked-ints-test)
 (require "lib/assert.lisp")
 (require "arch/mars.lisp")
 (declare
@@ -16,7 +17,7 @@
   (list (pointer-to linked-ints)))
 
  (block
-  (set list (cast (pointer-to linked-ints) (mars.sbrk (size-of linked-ints))))
+  (set list (cast (pointer-to linked-ints) (mars:sbrk (size-of linked-ints))))
   (set (field (deref list) value) num)
   (set (field (deref list) next) rest)
   (return list)))
@@ -30,20 +31,17 @@
   (msg.4 (ascii "List[3] should be NULL")))
  
  (block
-  (set (array newline 0) 10)
-  (set (array newline 1) 0)
-
   (set list (cast (pointer-to linked-ints) 0))
   (set list (cons 1 list))
   (set list (cons 2 list))
 
-  (assert (== (field (deref list) value) 2) msg.1)
+  (assert:assert (== (field (deref list) value) 2) msg.1)
 
   (set list (field (deref list) next))
-  (assert (== (field (deref list) value) 1) msg.2)
+  (assert:assert (== (field (deref list) value) 1) msg.2)
 
   (set list (field (deref list) next))
-  (assert (== (field (deref list) value) 0) msg.3)
+  (assert:assert (== (field (deref list) value) 0) msg.3)
 
   (set list (field (deref list) next))
-  (assert (== list 0) msg.4)))
+  assert:assert (== list 0) msg.4))

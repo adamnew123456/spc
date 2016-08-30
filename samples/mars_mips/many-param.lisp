@@ -1,3 +1,4 @@
+(namespace many-param-test)
 (require "lib/assert.lisp")
 (declare
  (three-param (function byte integer integer integer))
@@ -9,9 +10,9 @@
   (msg.2 (ascii "b should be 2"))
   (msg.3 (ascii "c should be 3")))
  (block
-  (assert (== a 1) msg.1)
-  (assert (== b 2) msg.2)
-  (assert (== c 3) msg.3)))
+  (assert:assert (== a 1) msg.1)
+  (assert:assert (== b 2) msg.2)
+  (assert:assert (== c 3) msg.3)))
 
 (define main ()
  (declare)

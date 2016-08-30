@@ -1,3 +1,4 @@
+(namespace func-ptr-test)
 (require "lib/assert.lisp")
 (declare
  (newline (ascii "\n"))
@@ -24,5 +25,5 @@
   (msg.1 (ascii "(do-42 double) should be 84"))
   (msg.2 (ascii "(do-42 triple) should be 126")))
  (block
-  (assert (== (do-42 double) 84) msg.1)
-  (assert (== (do-42 triple) 126) msg.2)))
+  (assert:assert (== (do-42 double) 84) msg.1)
+  (assert:assert (== (do-42 triple) 126) msg.2)))
