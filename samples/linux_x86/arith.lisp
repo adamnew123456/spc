@@ -1,3 +1,4 @@
+(namespace arith-sample)
 (require "lib/assert.lisp")
 (declare
  (main (function byte)))
@@ -18,8 +19,8 @@
   (set x 8)
   (set y 3)
 
-  (assert (== (+ x y) 11) msg.1)
-  (assert (== (- x y) 5) msg.2)
-  (assert (== (* x y) 24) msg.3)
-  (assert (== (/ x y) 2) msg.4)
-  (assert (== (% x 7) 1) msg.5)))
+  (assert:assert (== (+ x y) 11) msg.1)
+  (assert:assert (== (- x y) 5) msg.2)
+  (assert:assert (== (* x y) 24) msg.3)
+  (assert:assert (== (/ x y) 2) msg.4)
+  (assert:assert (== (% x 7) 1) msg.5)))

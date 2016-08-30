@@ -14,7 +14,7 @@
 ;;  8. Comparison operations
 ;;  9. if/while/switch conditionals
 ;; 10. cast from byte to pointer
-    
+(namespace coercion-test)
 (declare
  (int->byte (function byte integer))
  (byte->int (function integer byte))

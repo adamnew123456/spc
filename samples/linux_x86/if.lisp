@@ -1,3 +1,4 @@
+(namespace if-test)
 (require "lib/assert.lisp")
 (declare
  (should-not-execute (function byte))
@@ -6,7 +7,7 @@
 (define should-not-execute ()
  (declare
   (msg (ascii "This should not have executed")))
- (assert 0 msg))
+ (assert:assert 0 msg))
 
 (define main ()
  (declare)

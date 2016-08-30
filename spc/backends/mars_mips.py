@@ -90,16 +90,20 @@ class MarsTemplates:
         self._write_instr('.text')
 
     def emit_prog_header(self):
-        self._write_instr('    jal {}', mangle_label('main'))
+        self._write_instr('    jal _main_stub')
         self._write_instr('    li $v0, 10')
         self._write_instr('    syscall')
+
+    def emit_prog_footer(self, main_label):
+        self._write_instr('_main_stub:')
+        self._write_instr('    j {}', main_label)
 
     def emit_export(self, name, type_of):
         if isinstance(type_of, types.FunctionDecl):
             self._write_instr('.globl {}', mangle_label(name))
         else:
-            if name in self.backend.current_context.array_bound:
-                size = self.backend.current_context.array_bound[name]
+            if name in self.backend.ctx_arrays:
+                size = self.backend.ctx_arrays[name]
             else:
                 size = self.backend._type_size(name)
 

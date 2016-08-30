@@ -4,18 +4,14 @@ Utility functions and classes shared by multiple backends
 from collections import namedtuple
 import logging
 
-from .symbols import SymbolTable
+from . import symbols
 from . import types
 
 LOGGER = logging.getLogger('spc.backend_utils')
 
-# A context is a bundle of symbol tables for values, functions, and types.
-#
-# The need for array_bound comes about because arrays are treated like pointers,
-# but are referenced differently - their 'value' is their address (not the value
-# of their first element), and they can't actually be assigned to (since they
-# are a label for a hunk of memory)
-Context = namedtuple('Context', ['value_defns', 'type_defns', 'array_bound', 'func_stack'])
+# NameContexts encapsulate both the function stack (which holds values) and
+# the symbol table context (which binds them)
+NameContext = namedtuple('NameContext', ['symbol_ctx', 'func_stack'])
 
 # While loops are identified by two labels - the start label, for re-running
 # the condition, and the end label, for exiting when the condition is false
@@ -258,17 +254,84 @@ class FunctionStack:
         """
         return self.vars[name]
 
+class VerificationContext:
+    """
+    Used to record all values and types defined all at once (i.e. inside the
+    same declaration block), so that they can be verified all at once.
+
+    "Verification" here means that their types are checked to be valid, which
+    means different things for different types.
+    """
+    def __init__(self):
+        self.types = []
+        self.values = []
+
+    def add_value(self, name):
+        """
+        Registers a new value to be verified.
+        """
+        self.values.append(name)
+
+    def add_type(self, name):
+        """
+        Registers a new type to be defined.
+        """
+        self.types.append(types)
+
+    def verify(self, backend):
+        """
+        Verifies all the definitions against the backend.
+        """
+        backend._check_valid_types(backend.ctx_types[name] for name in self.types)
+        backend._check_valid_types(backend.ctx_values[name] for name in self.values)
+
 class ContextMixin:
     """
-    Manages a stack of Contexts.
+    Manages the symbol table contexts for this backend (as well as its function stack
 
     Depends upon the user of this mixin to inherit from BaseBackend in 
     addition to this one.
     """
     def __init__(self):
         self.parent_contexts = []
-        self.current_context = Context(self.def_vals, self.def_types, 
-            SymbolTable(), None)
+        self.current_context = NameContext(symbols.Context(), None)
+        self.verify_context = VerificationContext()
+
+    def _register_file_ns(self, namespace):
+        """
+        Replaces the current context, with one where the symbol context is
+        expanded to contain the file's namespace.
+        """
+        file_context = self.current_context.symbol_ctx.register(namespace)
+        self.current_context = self.current_context._replace(symbol_ctx=file_context)
+
+    @property
+    def ctx_namespace(self):
+        """
+        Gets the current namespace
+        """
+        return self.current_context.symbol_ctx.search_path[0]
+
+    @property
+    def ctx_values(self):
+        """
+        Returns the current context's value symbols.
+        """
+        return self.current_context.symbol_ctx.values
+
+    @property
+    def ctx_types(self):
+        """
+        Returns the current context's type symbols.
+        """
+        return self.current_context.symbol_ctx.types
+
+    @property
+    def ctx_stack(self):
+        """
+        Returns the current context's stack information.
+        """
+        return self.current_context.func_stack
 
     def _value_is_defined(self, name):
         """
@@ -277,7 +340,8 @@ class ContextMixin:
 
         This is for the static expression processor function, var-def?
         """
-        return name in self.current_context.value_defns
+        return (name in self.ctx_values and
+            self.ctx_values.is_visible(name))
 
     def _type_is_defined(self, name):
         """
@@ -286,7 +350,8 @@ class ContextMixin:
 
         This is for the static expression processor function, var-def?
         """
-        return name in self.current_context.type_defns
+        return (name in self.ctx_types and
+            self.ctx_types.is_visible(name))
 
     def _make_func_stack(self):
         raise NotImplementedError
@@ -298,11 +363,9 @@ class ContextMixin:
         old_context = self.current_context
         self.parent_contexts.append(old_context)
 
-        self.current_context = Context(
-                SymbolTable(old_context.value_defns),
-                SymbolTable(old_context.type_defns),
-                SymbolTable(old_context.array_bound),
-                self._make_func_stack())
+        self.current_context = NameContext(
+            self.current_context.symbol_ctx.enter(),
+            self._make_func_stack())
 
     def _pop_context(self):
         """
@@ -315,13 +378,23 @@ class ContextMixin:
         Resolves a type name into a concrete type.
         """
         try:
-            return types.resolve_name(name, self.current_context.type_defns)
+            return types.resolve_name(name, self.ctx_types)
+        except PermissionError as exn:
+            self.error(self.line, self.col,
+                'Cannot resolve hidden type "{}"', str(exn))
         except RecursionError:
             self.error(self.line, self.col,
                 'Type aliases too deep, when resolving "{}"', name)
         except KeyError as exn:
             self.error(self.line, self.col, 
                 'Invalid type "{}"', str(exn))
+
+    def _verify_types(self):
+        """
+        Verifies all the types across all this current context's symbols.
+        """
+        self.verify_context.verify(self)
+        self.verify_context = VerificationContext()
 
 class ThirtyTwoMixin:
     """

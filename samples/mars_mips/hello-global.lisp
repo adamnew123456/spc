@@ -1,3 +1,4 @@
+(namespace hello-global-test)
 (require "lib/io.lisp")
 (declare
  (hello-world (ascii "Hello, World!\n"))
@@ -6,4 +7,4 @@
 (define main ()
  (declare)
  (block
-  (io.print hello-world)))
+  (io:print hello-world)))

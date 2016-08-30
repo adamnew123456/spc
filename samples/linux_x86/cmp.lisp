@@ -1,3 +1,4 @@
+(namespace cmp-sample)
 (require "lib/assert.lisp")
 (declare
  (main (function byte)))
@@ -21,14 +22,14 @@
   (set i 10)
   (set j 100)
 
-  (assert (> j i) msg.1)
-  (assert (< i j) msg.2)
+  (assert:assert (> j i) msg.1)
+  (assert:assert (< i j) msg.2)
 
-  (assert (>= j i) msg.3)
-  (assert (>= j j) msg.4)
+  (assert:assert (>= j i) msg.3)
+  (assert:assert (>= j j) msg.4)
 
-  (assert (<= i j) msg.5)
-  (assert (<= i i) msg.6)
+  (assert:assert (<= i j) msg.5)
+  (assert:assert (<= i i) msg.6)
 
-  (assert (! (== i j)) msg.7)
-  (assert (!= i j) msg.8)))
+  (assert:assert (! (== i j)) msg.7)
+  (assert:assert (!= i j) msg.8)))

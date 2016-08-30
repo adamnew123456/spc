@@ -1,17 +1,18 @@
+(namespace linux)
 (declare
- (linux.exit (function byte integer))
- (linux.read (function integer integer string integer))
- (linux.write (function integer integer string integer)))
+ (exit (function byte integer))
+ (read (function integer integer string integer))
+ (write (function integer integer string integer)))
 
-(export 'linux.exit 'linux.read 'linux.write)
+(export 'exit 'read 'write)
 
-(assemble linux.exit
+(assemble exit
  "movl $1, %eax
   movl 4(%esp), %ebx
   int $0x80
   ret")
 
-(assemble linux.read
+(assemble read
  "movl $3, %eax
   movl 4(%esp), %ebx
   movl 8(%esp), %ecx
@@ -19,7 +20,7 @@
   int $0x80
   ret")
 
-(assemble linux.write
+(assemble write
  "movl $4, %eax
   movl 4(%esp), %ebx
   movl 8(%esp), %ecx

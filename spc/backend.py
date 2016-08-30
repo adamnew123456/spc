@@ -3,7 +3,6 @@ This is the base backend, which contains parts which should be common to most
 backends.
 """
 from .errors import CompilerError
-from .symbols import SymbolTable
 from . import types
 
 class EmptyBackend:
@@ -53,6 +52,11 @@ class EmptyBackend:
         Handles a declaration which binds the name and the given type. decl_type
         can be anything from the spc.types module - either value types or special
         declaration types.
+        """
+
+    def handle_namespace(self, namespace):
+        """
+        Called to process a namespace statement.
         """
 
     def handle_require(self, filename):
@@ -180,16 +184,12 @@ class BaseBackend:
     # Override this with the appropriate for of comment for the backend
     comment_fmt = '# {}'
 
-    def __init__(self, output, filename, is_library, 
-                builtin_functions, builtin_types):
+    def __init__(self, output, filename, is_library):
         self.library = is_library
         self.filename = filename
         self.output_stream = output
         self.line = 0
         self.col = 0
-
-        self.def_vals = SymbolTable(builtin_functions, is_global=True)
-        self.def_types = SymbolTable(builtin_types, is_global=True)
 
         self.if_labels = []
         self.while_labels = []

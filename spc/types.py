@@ -21,8 +21,11 @@ TypeName = namedtuple('TypeName', ['name'])
 Struct = namedtuple('Struct', ['fields'])
 
 # This is used merely to record that a function has been declared - the
-# actual reified type is FunctionPointer
-FunctionDecl = namedtuple('FunctionDecl', ['return_type', 'params'])
+# actual reified type is FunctionPointer.
+#
+# This does differ in that it has its own name, though, because it is loaded
+# by label name
+FunctionDecl = namedtuple('FunctionDecl', ['name', 'return_type', 'params'])
 
 # Like FunctionDecl - the actual reified type is a pointer, this is just
 # a declaration to allocate a certain amount of space somewhere
@@ -49,7 +52,7 @@ def func_decl_to_ptr(func_decl):
     """
     Converts a function declaration to a pointer.
     """
-    return FunctionPointer(*func_decl)
+    return FunctionPointer(func_decl.return_type, func_decl.params)
 
 class Alignment(Enum):
     Up = 1
@@ -99,8 +102,11 @@ def resolve_name(name, types, MAX_DEPTH=25):
     current_depth = 0
     while isinstance(name, TypeName):
         current_depth += 1
-        name = types[name.name]
 
+        if not types.is_visible(name.name):
+            raise PermissionError(name.name)
+
+        name = types[name.name]
         if current_depth > MAX_DEPTH:
             raise RecursionError
 

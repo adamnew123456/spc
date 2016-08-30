@@ -9,6 +9,7 @@ from .errors import CompilerError
 from . import expressions
 from . import lexer
 from . import static_expressions
+from . import symbols
 from . import types
 
 LOGGER = logging.getLogger('spc.driver')
@@ -74,7 +75,7 @@ class Driver:
         else:
             return types.TypeName(chunk.content)
 
-    def parse_decl_type(self, chunk):
+    def parse_decl_type(self, chunk, def_name):
         """
         Parses normal types, in addition to the forms:
 
@@ -126,7 +127,7 @@ class Driver:
 
             return_type = self.parse_type(chunk[1])
             params = tuple(self.parse_type(param) for param in chunk[2:])
-            return types.FunctionDecl(return_type, params)
+            return types.FunctionDecl(def_name, return_type, params)
         elif chunk[0].content == 'struct':
             if len(chunk) < 2:
                 raise CompilerError.from_token(chunk[1],
@@ -201,7 +202,11 @@ class Driver:
                     'Each declaration must start with an identifier')
 
             identifier = element[0].content
-            declaration = self.parse_decl_type(element[1])
+            if symbols.has_namespace(identifier):
+                raise CompilerError.from_token(declaration[0],
+                    'Declaration identifiers cannot be namespaced')
+
+            declaration = self.parse_decl_type(element[1], identifier)
 
             decl_line = element[0].line
             decl_col = element[0].column
@@ -210,6 +215,27 @@ class Driver:
             self.backend.handle_decl(identifier, declaration)
 
         self.backend.handle_decl_block_end()
+
+    def process_namespace(self, namespace):
+        """
+        Parses a namespace statement.
+        """
+        if len(namespace) != 2:
+            raise CompilerError.from_token(namespace[0],
+                'namespace must take the form (namespace IDENTIFIER)')
+
+        self.backend.update_position(namespace[0].line, namespace[0].column)
+
+        if not lexer.is_identifier(namespace[0]):
+            raise CompilerError.from_token(namespace[0],
+                'namespace must take the form (namespace IDENTIFIER)')
+
+        ns_name = namespace[1].content
+        if symbols.has_namespace(ns_name):
+            raise CompilerError.from_token(namespace[0],
+                'Cannot have nested namespaces in namespace declaration')
+
+        self.backend.handle_namespace(ns_name)
 
     def process_require(self, require):
         """
@@ -724,6 +750,10 @@ class Driver:
             raise CompilerError.from_token(definition[0],
                 'Function definition does not have a valid name')
 
+        if symbols.has_namespace(name.content):
+            raise CompilerError.from_token(definition[0],
+                'Function definition cannot have a namespace')
+
         params = definition[2]
         if not isinstance(params, list):
             raise CompilerError.from_token(definition[0],
@@ -809,6 +839,8 @@ class Driver:
                 self.process_function_definition(toplevel)
             elif toplevel[0].content == 'assemble':
                 self.process_assembly_definition(toplevel)
+            elif toplevel[0].content == 'namespace':
+                self.process_namespace(toplevel)
             elif toplevel[0].content == 'require':
                 self.process_require(toplevel)
             elif toplevel[0].content == 'export':

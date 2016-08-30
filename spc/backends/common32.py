@@ -10,7 +10,7 @@ from ..backend_utils import (
 )
 from .. import expressions
 from ..require_processor import RequireProcessor
-from ..symbols import SymbolTable
+from .. import symbols
 from .. import types
 from ..util import (
     make_label_maker, mangle_label, unescape_bytes
@@ -18,23 +18,16 @@ from ..util import (
 
 LOGGER = logging.getLogger('spc.common32')
 
-BUILTIN_TYPES = SymbolTable(is_builtin=True)
-BUILTIN_TYPES['string'] = types.PointerTo(types.Byte)
-
-BUILTIN_FUNCTIONS = SymbolTable(is_builtin=True)
-
 class Common32Backend(ContextMixin, ThirtyTwoMixin, BaseBackend):
     """
     Emits MIPS assembly code compatible with the MARS simulator.
     """
     def __init__(self, templates, output, filename, is_library):
-        BaseBackend.__init__(self, output, filename, is_library,
-                BUILTIN_FUNCTIONS, BUILTIN_TYPES)
-
+        BaseBackend.__init__(self, output, filename, is_library)
         ContextMixin.__init__(self)
 
+        self.file_namespace = None
         self.templates = templates
-        self.exported = set()
         self.undefined_funcs = set()
         self.comment_fmt = templates.comment_fmt
         self.label_maker = make_label_maker()
@@ -77,6 +70,13 @@ class Common32Backend(ContextMixin, ThirtyTwoMixin, BaseBackend):
             self.error(0, 0,
                 'Functions not defined: {}', self.undefined_funcs)
 
+        if not self.library:
+            if self.main_function is None:
+                self.error(0, 0,
+                    'No main function defined in non-library file')
+
+            self.templates.emit_prog_footer(mangle_label(self.main_function))
+
     def handle_decl_block_start(self):
         """
         Handles the start of a declaration block.
@@ -108,6 +108,10 @@ class Common32Backend(ContextMixin, ThirtyTwoMixin, BaseBackend):
         either reserve space on the stack, or just add information to the local
         context.
         """
+        if self.file_namespace is None:
+            self.error(self.line, self.col,
+                'Must have (namespace ...) declaration before toplevel declare')
+
         was_type_name = isinstance(decl_type, types.TypeName)
         decl_type = self._resolve_if_type_name(decl_type)
 
@@ -115,47 +119,61 @@ class Common32Backend(ContextMixin, ThirtyTwoMixin, BaseBackend):
             self._write_comment('  Declaring string {}', name)
 
             escaped = unescape_bytes(decl_type.bytes).encode('ascii')
-            self.current_context.value_defns[name] = types.PointerTo(types.Byte)
-            self.current_context.array_bound[name] = len(escaped)
+            self.ctx_values[name] = types.PointerTo(types.Byte)
+            self.ctx_values.meta_set(name, 'visible', {self.ctx_namespace})
+            self.ctx_values.meta_set(name, 'array', len(escaped))
+
+            self.verify_context.add_value(name)
 
             if self.in_function:
                 # We can't really use .asciiz in a function, so we'll have to
                 # make do with copying bytes manually
                 escaped += b'\0'
-                self.current_context.func_stack.add_local(name, len(escaped), 1)
-                base_addr = self.current_context.func_stack.local_offset
+                self.ctx_stack.add_local(name, len(escaped), 1)
+                base_addr = self.ctx_stack.local_offset
 
                 self.templates.emit_stack_string(base_addr, escaped)
             else:
+                self.ctx_values.meta_set(name, 'global', True)
+
                 self.templates.emit_label(mangle_label(name))
                 self.templates.emit_static_string(decl_type.bytes.decode('ascii'))
         elif was_type_name or isinstance(decl_type, types.RAW_TYPES):
             self._write_comment('  Declaring variable {} :: {}', name, decl_type)
 
             was_array = isinstance(decl_type, types.ArrayOf)
-            self.current_context.value_defns[name] = types.decay_if_array(decl_type)
+            self.ctx_values[name] = types.decay_if_array(decl_type)
+            self.ctx_values.meta_set(name, 'visible', {self.ctx_namespace})
+
+            self.verify_context.add_value(name)
 
             if self.in_function:
                 # Raw types have to be allocated stack space
                 size = self._type_size(decl_type)
                 alignment = self._type_alignment(decl_type)
-                self.current_context.func_stack.add_local(name, size, alignment)
+                self.ctx_stack.add_local(name, size, alignment)
             else:
                 # Raw types have to be allocated space inside of .data
                 # and given a label
                 self._write_comment('  As a global')
 
+                self.ctx_values.meta_set(name, 'global', True)
+
                 size = self._type_size(decl_type)
                 self.templates.emit_label(mangle_label(name))
                 self.templates.emit_static_space(size)
+
             if was_array:
-                self.current_context.array_bound[name] = size
+                self.ctx_values.meta_set(name, 'array', True)
 
         elif isinstance(decl_type, types.Struct):
             # Structure types are treated as structure definitions, which 
             # bind a type definition
             self._write_comment('  Declaring structure {} :: {}', name, decl_type)
-            self.current_context.type_defns[name] = decl_type
+            self.ctx_types[name] = decl_type
+            self.ctx_types.meta_set(name, 'visible', {self.ctx_namespace})
+
+            self.verify_context.add_type(name)
         elif isinstance(decl_type, types.FunctionDecl):
             # Function declarations signify a function that is defined 
             # somewhere
@@ -165,11 +183,25 @@ class Common32Backend(ContextMixin, ThirtyTwoMixin, BaseBackend):
             self.undefined_funcs.add(name)
 
             self._write_comment('  Declaring function {} :: {}', name, decl_type)
-            self.current_context.value_defns[name] = decl_type
+
+            full_decl_type = symbols.namespace_func_decl(decl_type, self.ctx_namespace)
+
+            self.ctx_values[name] = full_decl_type
+            self.ctx_values.meta_set(name, 'global', True)
+            self.ctx_values.meta_set(name, 'visible', {self.ctx_namespace})
+
+            self.verify_context.add_value(name)
+
+            if name == 'main':
+                full_name = symbols.join_namespace(self.ctx_namespace, name)
+                self.main_function = full_name
         elif isinstance(decl_type, types.AliasDef):
             # Alias definitions bind an existing type to a new name
             self._write_comment('  Declaring alias {} => {}', name, decl_type.type)
-            self.current_context.type_defns[name] = decl_type.type
+            self.ctx_types[name] = decl_type.type
+            self.ctx_types.meta_set(name, 'visible', {self.ctx_namespace})
+
+            self.verify_context.add_type(name)
 
     def handle_decl_block_end(self):
         """
@@ -181,17 +213,25 @@ class Common32Backend(ContextMixin, ThirtyTwoMixin, BaseBackend):
         """
         # Make sure that all the types we just defined don't reference
         # any types that don't exist, or do any other nasty things
-        for symbol_tbl in self.current_context:
-            # (Not all things in the context are symbol tables, but most are)
-            if isinstance(symbol_tbl, SymbolTable):
-                self._check_valid_types(symbol_tbl.bindings.values())
+        self._verify_types()
 
         if self.in_function:
-            self.current_context.func_stack.expand_locals()
+            self.ctx_stack.expand_locals()
         else:
             self.templates.emit_text_segment()
             if not self.library:
                 self.templates.emit_prog_header()
+    
+    def handle_namespace(self, namespace):
+        """
+        Sets the file's global namespace.
+        """
+        if self.file_namespace is not None:
+            self.error(self.line, self.col,
+                'Cannot have duplicate (namespace ...) declarations')
+
+        self.file_namespace = namespace
+        self._register_file_ns(self.file_namespace)
 
     def handle_require(self, filename):
         """
@@ -201,22 +241,22 @@ class Common32Backend(ContextMixin, ThirtyTwoMixin, BaseBackend):
             self.error(self.line, self.col,
                 "Cannot load another file inside of a function")
 
+        if self.file_namespace is None:
+            self.error(self.line, self.col,
+                'Must have (namespace ...) declaration before (require ...)')
+
         try:
             processor = RequireProcessor.require(filename, self)
             if processor is None:
                 return
 
-            for type_name, type_obj in processor.exported_types.items():
-                self._write_comment('Importing definition: {} of type {}', type_name, type_obj)
-                self.current_context.type_defns[type_name] = type_obj
+            for type_name in processor.exported_types:
+                self._write_comment('Importing definition: {}', type_name)
+                self.ctx_types.meta_get(type_name, 'visible').add(self.ctx_namespace)
 
-            for val_name, val_obj in processor.exported_values.items():
-                self._write_comment('Importing value: {} of type {}', val_name, val_obj)
-                self.current_context.value_defns[val_name] = val_obj
-                self.exported.add(val_name)
-
-            for arr_name, arr_obj in processor.exported_arrays.items():
-                self.current_context.array_bound[arr_name] = True
+            for val_name in processor.exported_values:
+                self._write_comment('Importing value: {}', val_name)
+                self.ctx_values.meta_get(val_name, 'visible').add(self.ctx_namespace)
         except OSError:
             self.error(self.line, self.col,
                 "Could not open file '{}' for reading", filename)
@@ -235,24 +275,34 @@ class Common32Backend(ContextMixin, ThirtyTwoMixin, BaseBackend):
             self.error(self.line, self.col,
                 'Cannot import values inside of function')
 
+        if self.file_namespace is None:
+            self.error(self.line, self.col,
+                'Must have (namespace ...) declaration before (export ...)')
+
         for name in names:
             if name[0] not in "'*":
                 self.error(self.line, self.col,
                     "Export must begin with either ' or *")
+
+            if name[0] == "'":
+                full_name = self.ctx_values.resolve(name[1:]) 
+            else:
+                full_name = self.ctx_types.resolve(name[1:])
+
+            owning_ns, _ = symbols.split_namespace(full_name)
+            if owning_ns != self.file_namespace:
+                self.error(self.line, self.col,
+                    'Cannot export foreign type or value "{}" (owned by "{}")', full_name, owning_ns)
 
             # Types don't actually exist for the assembler, so no code has to e
             # generated for them
             if name[0] != "'":
                 continue
 
-
             name = name[1:]
-            if name in self.exported:
-                self.error(self.line, self.col,
-                    'Cannot re-export foreign value "{}"', name)
 
             try:
-                type_of = self.current_context.value_defns[name]
+                type_of = self.ctx_values[name]
             except KeyError:
                 self.error(self.line, self.col,
                     'Undefined export "{}"', name)
@@ -261,7 +311,8 @@ class Common32Backend(ContextMixin, ThirtyTwoMixin, BaseBackend):
                 self.error(self.line, self.col,
                     'Cannot export value of type "{}"', type_of)
 
-            self.templates.emit_export(name, type_of)
+            full_name = symbols.join_namespace(self.ctx_namespace, name)
+            self.templates.emit_export(full_name, type_of)
 
     def handle_func_def_start(self, name, params):
         """
@@ -270,9 +321,13 @@ class Common32Backend(ContextMixin, ThirtyTwoMixin, BaseBackend):
         self.in_function = True
         self.func_exit_label = next(self.label_maker)
 
+        # This has to be done before we push the context, since the function
+        # "belongs" to this context and not its local context
+        full_name = symbols.join_namespace(self.ctx_namespace, name)
+
         try:
             self.undefined_funcs.remove(name)
-            func_defn = self.current_context.value_defns[name]
+            func_defn = self.ctx_values[name]
         except KeyError as exn:
             self.error(self.line, self.col, 'Undefined function "{}"', name)
 
@@ -301,19 +356,21 @@ class Common32Backend(ContextMixin, ThirtyTwoMixin, BaseBackend):
             
             if first_arg and alignment % 4 != 0:
                 self._write_comment('Head Padding {} bytes', 4 - (alignment % 4))
-                self.current_context.func_stack.pad_param(4 - (alignment % 4))
+                self.ctx_stack.pad_param(4 - (alignment % 4))
                 first_arg = False
 
-            self.current_context.func_stack.add_param(param, type_size, alignment)
-            self.current_context.value_defns[param] = param_type
+            self.ctx_stack.add_param(param, type_size, alignment)
+            self.ctx_values[param] = param_type
+            self.ctx_values.meta_set(param, 'visible', {self.ctx_namespace})
 
         if last_alignment is not None and last_alignment % 4 != 0:
             self._write_comment('Tail Padding {} bytes', 4 - (last_alignment % 4))
-            self.current_context.func_stack.pad_param(4 - (last_alignment % 4))
+            self.ctx_stack.pad_param(4 - (last_alignment % 4))
 
         self.func_ret_type = self._resolve_if_type_name(func_defn.return_type)
-        self.templates.emit_label(mangle_label(name))
-        self.templates.emit_func_header(name)
+
+        self.templates.emit_label(mangle_label(full_name))
+        self.templates.emit_func_header(full_name)
 
     def handle_func_def_end(self):
         """
@@ -322,7 +379,7 @@ class Common32Backend(ContextMixin, ThirtyTwoMixin, BaseBackend):
         Writes out the end label and the code for doing a function return.
         """
         self.templates.emit_label(self.func_exit_label)
-        self.current_context.func_stack.cleanup_locals()
+        self.ctx_stack.cleanup_locals()
         self.templates.emit_func_footer()
         self._pop_context()
 
@@ -338,15 +395,16 @@ class Common32Backend(ContextMixin, ThirtyTwoMixin, BaseBackend):
         self.undefined_funcs.remove(name)
 
         try:
-            func_defn = self.current_context.value_defns[name]
+            func_defn = self.ctx_values[name]
         except KeyError as exn:
             self.error(self.line, self.col, 'Undefined function "{}"', name)
 
         if not isinstance(func_defn, types.FunctionDecl):
             self.error(self.line, self.col, 'Value {} is not a function', name)
 
-        self.templates.emit_label(mangle_label(name))
-        self.templates.emit_asm(name, code)
+        full_name = symbols.join_namespace(self.ctx_namespace, name)
+        self.templates.emit_label(mangle_label(full_name))
+        self.templates.emit_asm(full_name, code)
 
     def handle_block_start(self):
         """
@@ -420,7 +478,7 @@ class Common32Backend(ContextMixin, ThirtyTwoMixin, BaseBackend):
         #   add $t1, c, d
         #   add x, $t0, $t1
 
-        # by_ref is useful to have - conside the following example with structs:
+        # by_ref is useful to have - consider the following example with structs:
         #
         # - structs which are assigned to other structs should do so by 
         #   copying one to another, bit by bit. This is where by_ref == False.
@@ -432,6 +490,7 @@ class Common32Backend(ContextMixin, ThirtyTwoMixin, BaseBackend):
         # The litmus test for whether or not something can be used in a ref 
         # context is whether it makes sense to assign to it. In this way, it is
         # similar to the lvalue/rvalue distinction in C (but a bit more liberal)
+
         self._write_comment('== Compiling Expression ==')
         self._write_comment('  Expression: {}', expr)
         self._write_comment('  by_ref? {}', by_ref)
@@ -441,12 +500,13 @@ class Common32Backend(ContextMixin, ThirtyTwoMixin, BaseBackend):
         if isinstance(expr, expressions.Variable):
             # by_ref obviously makes sense - otherwise, assignment to a variable
             # couldn't work at all!
+            real_name = expr.name
 
-            owning_scope = self.current_context.value_defns.find(expr.name)
-            if owning_scope is None:
-                self.error(*expr.loc, 'No variable "{}" in scope', expr.name)
+            try:
+                type_of = self.ctx_values[real_name]
+            except KeyError:
+                self.error(*expr.loc, 'Variable "{}" not defined', real_name)
 
-            type_of = owning_scope[expr.name]
             if isinstance(type_of, types.TypeName):
                 type_of = self._resolve_if_type_name(type_of)
 
@@ -456,15 +516,16 @@ class Common32Backend(ContextMixin, ThirtyTwoMixin, BaseBackend):
                     # it doesn't make sense to even try
                     self.error(*expr.loc, 'Cannot use function in a ref context')
 
+                real_name = type_of.name
                 type_of = types.func_decl_to_ptr(type_of)
 
                 # Set the flag anyway, since trying to load a function 
                 # 'by value' would load code, which doesn't make sense
-                self._write_comment('  Variable load: function pointer {}', expr.name)
+                self._write_comment('  Variable load: function pointer {}', real_name)
                 by_ref = True
 
-            if (isinstance(type_of, types.PointerTo) and 
-                    expr.name in self.current_context.array_bound):
+            is_array = self.ctx_values.meta_get(real_name, 'array', False)
+            if isinstance(type_of, types.PointerTo) and is_array:
                 # Arrays are promoted to by_ref, but for a special reason - the
                 # want to be pointers (thus a non-by-ref load should get back
                 # the address) but are more like values. Making them by_ref
@@ -476,6 +537,10 @@ class Common32Backend(ContextMixin, ThirtyTwoMixin, BaseBackend):
                 self._write_comment('  Variable load: array {}', expr.name)
                 by_ref = True
 
+            if not self.ctx_values.is_visible(real_name):
+                self.error(*expr.loc, 
+                    'Variable "{}" is not visible in current scope', real_name)
+
             if by_ref:
                 type_size = self._type_size(types.Integer)
                 type_align = self._type_alignment(types.Integer)
@@ -486,14 +551,12 @@ class Common32Backend(ContextMixin, ThirtyTwoMixin, BaseBackend):
             dest_offset = temp_context.add_temp(type_size, type_align)
             tmp_reg = self.templates.tmp_regs[0]
 
-            if owning_scope.is_global:
+            if self.ctx_values.meta_get(real_name, 'global', False):
                 # Global variables are somewhere in .data land, labeled by their name
-                self.templates.emit_load_static_addr(tmp_reg, expr.name)
-            elif owning_scope.is_builtin:
-                self.error(*expr.loc, 'Builtin values cannot be used, except to be called')
+                self.templates.emit_load_static_addr(tmp_reg, real_name)
             else:
                 # Local variables are on the stack
-                stack_offset = self.current_context.func_stack[expr.name]
+                stack_offset = self.ctx_stack[real_name]
                 self.templates.emit_load_stack_addr(tmp_reg, stack_offset)
 
             if by_ref:
@@ -1111,7 +1174,7 @@ class Common32Backend(ContextMixin, ThirtyTwoMixin, BaseBackend):
         self._write_comment('  From: {}', expression)
         self._write_comment('  To: {}', assignable)
 
-        temp_context = self.current_context.func_stack.get_temp_context(self)
+        temp_context = self.ctx_stack.get_temp_context(self)
         coercer = CoercionContext(self, temp_context, self.templates)
 
         with temp_context:
@@ -1155,7 +1218,7 @@ class Common32Backend(ContextMixin, ThirtyTwoMixin, BaseBackend):
 
         tmp_reg = self.templates.tmp_regs[0]
 
-        temp_context = self.current_context.func_stack.get_temp_context(self)
+        temp_context = self.ctx_stack.get_temp_context(self)
         coercer = CoercionContext(self, temp_context, self.templates)
 
         with temp_context:
@@ -1216,7 +1279,7 @@ class Common32Backend(ContextMixin, ThirtyTwoMixin, BaseBackend):
 
         if cond is not None:
             tmp_reg = self.templates.tmp_regs[0]
-            temp_context = self.current_context.func_stack.get_temp_context(self)
+            temp_context = self.ctx_stack.get_temp_context(self)
             coercer = CoercionContext(self, temp_context, self.templates)
 
             with temp_context:
@@ -1270,7 +1333,7 @@ class Common32Backend(ContextMixin, ThirtyTwoMixin, BaseBackend):
 
         self.templates.emit_label(while_context.cond)
 
-        temp_context = self.current_context.func_stack.get_temp_context(self)
+        temp_context = self.ctx_stack.get_temp_context(self)
         coercer = CoercionContext(self, temp_context, self.templates)
 
         with temp_context:
@@ -1331,7 +1394,7 @@ class Common32Backend(ContextMixin, ThirtyTwoMixin, BaseBackend):
         self._write_comment('==== Return ====')
         self._write_comment('  Return: {}', expr)
 
-        temp_context = self.current_context.func_stack.get_temp_context(self)
+        temp_context = self.ctx_stack.get_temp_context(self)
         coercer = CoercionContext(self, temp_context, self.templates)
 
         with temp_context:
@@ -1363,6 +1426,6 @@ class Common32Backend(ContextMixin, ThirtyTwoMixin, BaseBackend):
 
         self.update_position(*expr.loc)
 
-        temp_context = self.current_context.func_stack.get_temp_context(self)
+        temp_context = self.ctx_stack.get_temp_context(self)
         with temp_context:
             self._compile_expression(expr, temp_context)

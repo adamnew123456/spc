@@ -7,7 +7,7 @@ from .backend import EmptyBackend
 from .driver import Driver
 from .errors import CompilerError
 from .lexer import Lexer
-from .symbols import SymbolTable
+from . import symbols
 from . import types
 
 # Since a file isn't going to change in the middle of our run, there's no
@@ -46,26 +46,13 @@ class RequireProcessor(EmptyBackend):
     def __init__(self, filename, real_backend):
         self.real_backend = real_backend
         self.in_function = False
-
-        # This essentially 'shadows' types like 'string', which aren't really
-        # exported, but should be available to required modules
-        primitive_types = SymbolTable()
-        primitive_types['string'] = types.PointerTo(types.Byte)
-
-        # This adds another level to the exported set; since require is not
-        # transitive (that is, if A requires B, and B requires C, then
-        # A doesn't necessarily require C), all the "internal" symbols
-        # have to be defined elsewhere so they don't leak
-        self.internal_types = SymbolTable(primitive_types)
-        self.internal_values = SymbolTable()
-        self.internal_arrays = SymbolTable()
-
-        self.exported_types = {}
-        self.exported_values = {}
-        self.exported_arrays = {}
-
         self.import_list = set()
 
+        self.exported_values = set()
+        self.exported_types = set()
+
+        self.file_namespace = None
+        self.context = symbols.Context()
         self.filename = filename
         self.line = 0
         self.col = 0
@@ -77,7 +64,8 @@ class RequireProcessor(EmptyBackend):
 
         This is for the static expression processor function, var-def?
         """
-        return name in self.exported_values
+        return (name in self.context.values and
+                self.context.values.is_visible(name))
 
     def _type_is_defined(self, name):
         """
@@ -86,7 +74,8 @@ class RequireProcessor(EmptyBackend):
 
         This is for the static expression processor function, var-def?
         """
-        return name in self.exported_types
+        return (name in self.context.types and
+                self.context.types.is_visible(name))
 
     def _platform(self):
         """
@@ -132,12 +121,26 @@ class RequireProcessor(EmptyBackend):
         """
         self.in_function = False
 
+    def handle_namespace(self, namespace):
+        """
+        Sets the current namespace, if one is not defined.
+        """
+        if self.file_namespace is not None:
+            raise CompilerError(self.filename, self.line, self.col,
+                "Namespace already assigned")
+
+        self.file_namespace = namespace
+        self.context = self.context.register(namespace)
 
     def handle_require(self, filename):
         """
         This invokes itself recursively, as long as the require would not be
         circular.
         """
+        if self.file_namespace is None:
+            raise CompilerError(self.filename, self.line, self.col,
+                "Must define a file namespace before executing a require")
+
         try:
             filename = self._register_require(filename)
         except ValueError:
@@ -149,14 +152,11 @@ class RequireProcessor(EmptyBackend):
             if req_processor is None:
                 return
 
-            for type_name, type_obj in req_processor.exported_types.items():
-                self.internal_types[type_name] = type_obj
+            for val_name in req_processor.exported_values:
+                self.context.values.meta_get(val_name, 'visible').add(self.file_namespace)
 
-            for val_name, val_obj in req_processor.exported_values.items():
-                self.internal_values[val_name] = val_obj
-
-            for arr_name, arr_flag in req_processor.exported_arrays.items():
-                self.internal_arrays[arr_name] = arr_flag
+            for type_name in req_processor.exported_types:
+                self.context.types.meta_get(type_name, 'visible').add(self.file_namespace)
         except OSError:
             raise CompilerError(self.filename, self.line, self.col,
                 "Could not open file '{}' for reading", filename)
@@ -168,52 +168,85 @@ class RequireProcessor(EmptyBackend):
         if self.in_function:
             return
 
+        if self.file_namespace is None:
+            raise CompilerError(self.filename, self.line, self.col,
+                "Must define a file namespace before executing a declare")
+
         was_type_name = isinstance(decl_type, types.TypeName)
-        decl_type = types.resolve_name(decl_type, self.internal_types)
+        decl_type = types.resolve_name(decl_type, self.context.types)
 
         if isinstance(decl_type, types.StringLiteral):
-            self.internal_values[name] = types.PointerTo(types.Byte)
-            self.internal_arrays[name] = True
+            self.context.values[name] = types.PointerTo(types.Byte)
+            self.context.values.meta_set(name, 'visible', {self.file_namespace})
+            self.context.values.meta_set(name, 'array', True)
+            self.context.values.meta_set(name, 'global', True)
         elif was_type_name or isinstance(decl_type, types.RAW_TYPES):
             was_array = isinstance(decl_type, types.ArrayOf)
-            self.internal_values[name] = types.decay_if_array(decl_type)
+            self.context.values[name] = types.decay_if_array(decl_type)
+            self.context.values.meta_set(name, 'visible', {self.file_namespace})
+            self.context.values.meta_set(name, 'global', True)
 
             if was_array:
-                self.internal_arrays[name] = True
+                self.context.values.meta_set(name, 'array', True)
         elif isinstance(decl_type, types.Struct):
-            self.internal_types[name] = decl_type
+            self.context.types[name] = decl_type
+            self.context.types.meta_set(name, 'visible', {self.file_namespace})
         elif isinstance(decl_type, types.FunctionDecl):
-            self.internal_values[name] = decl_type
+            full_decl_type = symbols.namespace_func_decl(
+                    decl_type, 
+                    self.file_namespace)
+            self.context.values[name] = full_decl_type
+
+            self.context.values.meta_set(name, 'visible', {self.file_namespace})
+            self.context.values.meta_set(name, 'global', True)
         elif isinstance(decl_type, types.AliasDef):
-            self.internal_types[name] = decl_type 
+            self.context.types[name] = decl_type
+            self.context.types.meta_set(name, 'visible', {self.file_namespace})
 
     def handle_exports(self, names):
         """
         Moves the exported names into the export list, so that they are
         visible to the main backend.
         """
+        def check_non_foreign(name, context):
+            """
+            Ensures that the given name doesn't resolve to an identifier
+            that belongs to a foreign namespace.
+
+            Allowing these to be re-exported would lead to 'origination 
+            issues', since moving them from one namespace to another would
+            lose the original name. Since this is required for globals,
+            that would have to be stored somewhere, which complicates 
+            things.
+            """
+            namespace, _ = symbols.split_namespace(context.resolve(name))
+            if namespace != self.file_namespace:
+                raise CompilerError(self.filename, self.line, self.col,
+                    'Cannot re-export foreign value or type "{}"', name)
+
         for name in names:
             if name[0] == "'":
                 name = name[1:]
+                check_non_foreign(name, self.context.values)
+
                 try:
-                    type_obj = self.internal_values[name]
+                    type_obj = self.context.values[name]
                 except KeyError:
                     raise CompilerError(self.filename, self.line, self.col,
                         'Cannot export undefined value "{}"')
 
-                self.exported_values[name] = type_obj
-                
-                if name in self.internal_arrays:
-                    self.exported_arrays[name] = True
+                self.exported_values.add(self.context.values.resolve(name))
             elif name[0] == '*':
                 name = name[1:]
+                check_non_foreign(name, self.context.types)
+
                 try:
-                    type_decl = self.internal_types[name]
+                    type_decl = self.context.types[name]
                 except KeyError:
                     raise CompilerError(self.filename, self.line, self.col,
                         'Cannot export undefined type "{}"', name)
 
-                self.exported_types[name] = type_obj
+                self.exported_types.add(self.context.types.resolve(name))
             else:
                 raise CompilerError(self.filename, self.line, self.col,
                     "Exported name must be prefixed with ' or *")

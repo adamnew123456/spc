@@ -1,3 +1,4 @@
+(namespace assert)
 (require "lib/io.lisp")
 (declare
   (assert (function byte integer string)))
@@ -7,4 +8,4 @@
 (define assert (cond msg)
  (declare)
  (block
-  (if (! cond) (io.println msg))))
+  (if (! cond) (io:println msg))))

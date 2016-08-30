@@ -1,3 +1,4 @@
+(namespace jagged-struct-test)
 (declare
  (jagged (struct (a integer)
                  (b byte)))

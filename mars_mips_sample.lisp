@@ -1,5 +1,15 @@
 ;; Comments start with ; and go to the end of the line
 ;;
+;; All types and identifiers are namespaced - this means that:
+;;  - Each file has to start with a (namespace IDENTIFIER) declaration, giving
+;;    the namespace of the file
+;;  - Any attempt to use a file loaded by (require STRING) (see below) must use
+;;    that file's namespace to access its exported values. For example, if a
+;;    file with the namespace "foo" exports "bar", then other modules will need
+;;    to use "foo:bar" to get to it.
+;;  - If there are locals that override global variables, these too can be gotten
+;;    by prefixing the variable's name with the current file's namespace.
+;;
 ;; Primitive types:
 ;;   integer
 ;;   byte
@@ -67,7 +77,7 @@
 ;;    (*error STRING)
 ;;
 ;; Byte literals include C-style escapes, and are prefixed with #
-
+(namespace mars-mips-sample)
 (*if (platform? "mars" "mips")
  (require "arch/mars_mips.lisp")
  (*error "Sample must be compiled with 'mars_mips' backend"))
@@ -127,7 +137,7 @@
  ;; automatically upcast, when a value of one type or the other is needed.
  ;; Thus, these functions generally do not need to be used.
  (block
-  (set list (cast linked-ints-ptr (mars.sbrk (size-of linked-ints))))
+  (set list (cast linked-ints-ptr (mars:sbrk (size-of linked-ints))))
   (set (field (deref list) value) head)
   (set (field (deref list) next) tail)
   (return list)))
@@ -208,8 +218,8 @@
 
   (while (!= read-value 0)
    (block
-    (set read-value (mars.read-int))
+    (set read-value (mars:read-int))
     (set list (cons-linked-ints read-value list))))
 
-  (mars.print-int (sum-linked-ints list))
-  (mars.print-string newline)))
+  (mars:print-int (sum-linked-ints list))
+  (mars:print-string newline)))

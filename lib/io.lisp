@@ -1,3 +1,4 @@
+(namespace io)
 (*if (platform? "linux" "x86")
  (require "arch/linux_x86.lisp"))
 (*if (platform? "mars" "mips")
@@ -6,48 +7,48 @@
 (require "lib/str.lisp")
 
 (declare
- (io.printc (function byte byte))
- (io.print (function byte string))
- (io.println (function byte string))
- (io.read-int (function integer)))
+ (printc (function byte byte))
+ (print (function byte string))
+ (println (function byte string))
+ (read-int (function integer)))
 
-(export 'io.printc 'io.print 'io.println 'io.read-int)
+(export 'printc 'print 'println 'read-int)
 
-(define io.printc (char)
+(define printc (char)
  (declare
   (buffer (array-of byte 2)))
  (block
   (set (array buffer 0) char)
   (set (array buffer 1) #\0)
-  (io.print buffer)))
+  (print buffer)))
 
-(define io.print (str)
+(define print (str)
  (declare)
  (block
   (*if (platform? "linux" "*")
-   (linux.write 1 str (str.len str)))
+   (linux:write 1 str (str:len str)))
 
   (*if (platform? "mars" "mips")
-   (mars.print-string str))))
+   (mars:print-string str))))
 
-(define io.println (str)
+(define println (str)
  (declare)
  (block
-  (io.print str)
-  (io.printc #\n)))
+  (print str)
+  (printc #\n)))
 
 (*if (platform? "linux" "*")
- (define io.read-int ()
+ (define read-int ()
   (declare
    (buffsz integer)
    (buffer (ascii "            ")))
   (block
-   (set buffsz (str.len buffer))
-   (linux.read 0 buffer buffsz)
-   (return (str.str->int buffer)))))
+   (set buffsz (str:len buffer))
+   (linux:read 0 buffer buffsz)
+   (return (str:str->int buffer)))))
 
 (*if (platform? "mars" "mips")
- (define io.read-int ()
+ (define read-int ()
   (declare)
   (block
-   (return (mars.read-int)))))
+   (return (mars:read-int)))))

@@ -1,3 +1,4 @@
+(namespace byte-sample)
 (require "lib/assert.lisp")
 (declare
  (main (function byte)))
@@ -12,7 +13,7 @@
 
  (block
   (set x #q)
-  (assert (== x (array y 0)) msg.1)
+  (assert:assert (== x (array y 0)) msg.1)
 
   (set x #\n)
-  (assert (== x (array y 1)) msg.2)))
+  (assert:assert (== x (array y 1)) msg.2)))
