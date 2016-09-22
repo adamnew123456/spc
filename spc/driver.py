@@ -14,6 +14,104 @@ from . import types
 
 LOGGER = logging.getLogger('spc.driver')
 
+def pattern_match(form, token):
+    """
+    This provides a quick way to extract the contents of a token list,
+    and see if it matches an expected pattern. Variable elements are bound to
+    names in the returned object, to allow for easy retrieval.
+
+    If the token stream matches:
+
+    >>> pattern_match(['pointer-to', '?type'], tokens)
+    {'type': ...}
+
+    If the token stream does not match:
+
+    >>> pattern_match(['pointer-to', '?type'], tokens)
+    <Raise ValueError>
+
+    The possible pattern forms are:
+
+    - [...] - this indidcates a list of patterns
+    - 'literal' - this indicates an identifier called 'literal'
+    - '~name' - this iddicataes an identifier; the identifier is bound to the
+      key 'name'
+    - '$str' - this indicates a string; the string is bound to the key 'str'
+    - '%int' - this indicates an integer; the integer is bound to the key 'int'
+    - '#char' - this indicates a byte; the byte is bound to the key 'char'
+    - '[lst' - this indicates a sublist; the sublist is bound to the key 'lst'
+    - '?tok' - this indicates any token; the token is bound to the key 'tok'
+
+    Note that any modifier may be prefixed with a '*' to get a list of things of
+    that type. This is only supported as the final element.
+
+    You can escape any modifier by placing a backslash in front of it, which
+    forces the value to be a literal.
+    """
+    bindings = {}
+
+    if isinstance(form, list) and isinstance(token, list):
+        try:
+            forms_idx = 0
+            tokens_idx = 0
+            while forms_idx < len(form):
+                this_form = form[forms_idx]
+
+                if isinstance(this_form, str) and this_form[0] == '*':
+                    rest = []
+                    this_form = this_form[1:]
+
+                    # In order to fully bind everything, we have to know what
+                    # to pull out of the sub-bindings - there might not be any
+                    # if it's only literals
+                    if this_form[0] in '~$%#[?':
+                        bound_name = this_form[1:]
+                    else:
+                        bound_name = None
+
+                    while tokens_idx < len(token):
+                        this_token = token[tokens_idx]
+                        sub_bindings = pattern_match(this_form, this_token)
+
+                        if bound_name is not None:
+                            rest.append(sub_bindings[bound_name])
+
+                        tokens_idx += 1
+
+                    bindings[bound_name] = rest
+                else:
+                    this_token = token[tokens_idx]
+                    bindings.update(pattern_match(this_form, this_token))
+
+                    tokens_idx += 1
+
+                forms_idx += 1
+        except IndexError:
+            raise ValueError('Not enough tokens')
+
+        if tokens_idx != len(token):
+            raise ValueError('Extra tokens')
+    elif lexer.is_identifier(token) and form == '\\' + token.content:
+        pass
+    elif form[0] == '~' and lexer.is_identifier(token):
+        bindings[form[1:]] = token.content
+    elif form[0] == '$' and lexer.is_string(token):
+        bindings[form[1:]] = token.content
+    elif form[0] == '%' and lexer.is_integer(token):
+        bindings[form[1:]] = token.content
+    elif form[0] == '#' and lexer.is_char(token):
+        bindings[form[1:]] = token.content
+    elif form[0] == '[' and isinstance(token, list):
+        bindings[form[1:]] = token
+    elif form[0] == '?':
+        bindings[form[1:]] = token
+    elif lexer.is_identifier(token) and form == token.content:
+        pass
+    else:
+        raise ValueError('Cannot match')
+
+    return bindings
+
 class Driver:
     """
     Responsible for reading nested lists from the lexer and passing them off
@@ -41,39 +139,43 @@ class Driver:
             (pointer-to TYPE)
             (func-pointer TYPE TYPE*)
         """
-        if isinstance(chunk, list):
-            if not lexer.is_identifier(chunk[0]):
-                raise CompilerError(self.filename, 0, 0,
-                    'Invalid type: {}', lexer.print_list(chunk))
-
-            if chunk[0].content == 'pointer-to':
-                if len(chunk) != 2:
-                    raise CompilerError.from_token(chunk[0],
-                        'pointer-to must be of the form (pointer-to TYPE)')
-
-                return types.PointerTo(self.parse_type(chunk[1]))
-
-            elif chunk[0].content == 'func-pointer':
-                if len(chunk) < 2:
-                    raise CompilerError.from_token(chunk[0],
-                        'function-pointer must be of the form (func-pointer TYPE TYPE*)')
-
-                return_type = self.parse_type(chunk[1])
-                params = tuple(self.parse_type(param) for param in chunk[2:])
-                return types.FunctionPointer(return_type, params)
-            else:
-                raise CompilerError.from_token(chunk[0],
-                    'Unknown composite type: {}'.format(chunk[0].content))
-
-        elif chunk.type != lexer.IDENTIFIER:
-            raise CompilerError.from_token(chunk, 'Invalid type')
-
-        elif chunk.content == 'integer':
+        try:
+            var_tbl = pattern_match('integer', chunk)
             return types.Integer
-        elif chunk.content == 'byte':
+        except ValueError:
+            pass
+
+        try:
+            var_tbl = pattern_match('byte', chunk)
             return types.Byte
+        except ValueError:
+            pass
+
+        try:
+            var_tbl = pattern_match('~ident', chunk)
+            return types.TypeName(var_tbl['ident'])
+        except ValueError:
+            pass
+
+        try:
+            var_tbl = pattern_match(['pointer-to', '?type'], chunk)
+            return types.PointerTo(self.parse_type(var_tbl['type']))
+        except ValueError:
+            pass
+
+        try:
+            var_tbl = pattern_match(['func-pointer', '?rtype', '*?ptype'], chunk)
+
+            ret_type = self.parse_type(var_tbl['rtype'])
+            par_types = tuple(self.parse_type(param) for param in var_tbl['ptype'])
+            return types.FunctionPointer(ret_type, par_types)
+        except ValueError:
+            pass
+
+        if isinstance(chunk, list):
+            raise CompilerError.from_token(chunk[0], 'Invalid complex type {}', lexer.print_list(chunk))
         else:
-            return types.TypeName(chunk.content)
+            raise CompilerError.from_token(chunk, 'Invalid simple type')
 
     def parse_decl_type(self, chunk, def_name):
         """
@@ -85,91 +187,58 @@ class Driver:
             (struct (IDENTIFIER TYPE)+): Which indicates a structure definition
             (alias TYPE): Which indicates an alias to an existing type
         """
-        if not isinstance(chunk, list):
-            return self.parse_type(chunk)
+        try:
+            var_tbl = pattern_match(['ascii', '$str'], chunk)
+            return types.StringLiteral(var_tbl['str'])
+        except ValueError:
+            pass
 
-        if not lexer.is_identifier(chunk[0]):
-            raise CompilerError.from_token(chunk[0],
-                'Invalid declaration type')
+        try:
+            var_tbl = pattern_match(['array-of', '?type', '%size'], chunk)
 
-        if chunk[0].content == 'ascii':
-            if len(chunk) != 2:
-                raise CompilerError.from_token(chunk[0],
-                    'ascii must be of the form (ascii STRING)')
-
-            string_literal = chunk[1]
-            if not lexer.is_string(string_literal):
-                raise CompilerError.from_token(chunk[0],
-                    'ascii must be of the form (ascii STRING)')
-
-            return types.StringLiteral(string_literal.content)
-        elif chunk[0].content == 'array-of':
-            if len(chunk) != 3:
-                raise CompilerError.from_token(chunk[0],
-                    'array-of must be of the form (array-of TYPE NUMBER)')
-
-            array_type = self.parse_type(chunk[1])
-
-            count = chunk[2]
-            if not lexer.is_integer(count):
-                raise CompilerError.from_token(chunk[0],
-                    'array-of must be of the form (array-of TYPE NUMBER)')
-
-            if count.content <= 0:
-                raise CompilerError.from_token(chunk[2],
+            if var_tbl['size'] <= 0:
+                raise CompilerError.from_token(
+                    chunk[2],
                     'Array length must be positive')
 
-            return types.ArrayOf(array_type, count.content)
-        elif chunk[0].content == 'function':
-            if len(chunk) < 2:
-                raise CompilerError.from_token(chunk[0],
-                        'function must be of the form (function TYPE TYPE*)')
+            return types.ArrayOf(self.parse_type(var_tbl['type']),
+                                 var_tbl['size'])
+        except ValueError:
+            pass
 
-            return_type = self.parse_type(chunk[1])
-            params = tuple(self.parse_type(param) for param in chunk[2:])
-            return types.FunctionDecl(def_name, return_type, params)
-        elif chunk[0].content == 'struct':
-            if len(chunk) < 2:
-                raise CompilerError.from_token(chunk[1],
-                    'struct must be of the form (struct (IDENTIFIER TYPE)+)')
+        try:
+            var_tbl = pattern_match(['function', '?rtype', '*?ptype'], chunk)
 
+            ret_type = self.parse_type(var_tbl['rtype'])
+            par_types = tuple(self.parse_type(param) for param in var_tbl['ptype'])
+
+            return types.FunctionDecl(def_name, ret_type, par_types)
+        except ValueError:
+            pass
+
+        try:
             fields = OrderedDict()
+            top_vars = pattern_match(['struct', '[fields'], chunk)
 
-            if not isinstance(chunk[1], list):
-                raise CompilerError.from_token(chunk[1],
-                    'struct requires a group of fields')
+            for field in top_vars['fields']:
+                field_vars = pattern_match(['~name', '?type'], field)
 
-            for field_def in chunk[1:]:
-                if not isinstance(field_def, list):
-                    raise CompilerError.from_token(field_def,
-                        'Field must be of the form (IDENTIFIER TYPE)')
-
-                if len(field_def) != 2:
-                    raise CompilerError.from_token(chunk[0],
-                        'Field must be of the form (IDENTIFIER TYPE)')
-
-                identifier = field_def[0]
-                if not lexer.is_identifier(identifier):
-                    raise CompilerError.from_token(chunk[0],
-                        'Field must be of the form (IDENTIFIER TYPE)')
-
-                field_type = self.parse_type(field_def[1])
-                fields[identifier.content] = field_type
-
-            if len(fields) == 0:
-                raise CompilerError.from_token(chunk[0],
-                    'Struct cannot be empty')
+                field_type = self.parse_type(field_vars['type'])
+                fields[field_vars['name']] = field_type
 
             return types.Struct(fields)
-        elif chunk[0].content == 'alias':
-            if len(chunk) != 2:
-                raise CompilerError.from_token(chunk[0],
-                    'Type alias must be of the form (alias TYPE)')
+        except ValueError:
+            pass
 
-            alias_type = self.parse_type(chunk[1])
+        try:
+            var_tbl = pattern_match(['alias', '?type'], chunk)
+
+            alias_type = self.parse_type(var_tbl['type'])
             return types.AliasDef(alias_type)
-        else:
-            return self.parse_type(chunk)
+        except ValueError:
+            pass
+
+        return self.parse_type(chunk)
 
     def process_declaration(self, declaration):
         """
@@ -187,32 +256,34 @@ class Driver:
         self.backend.update_position(declaration[0].line, declaration[0].column)
         self.backend.handle_decl_block_start()
 
-        for element in declaration[1:]:
-            if not isinstance(element, list):
-                raise CompilerError.from_token(element,
-                    'Each declaration must be of the form (IDENTIFIER KIND)')
+        try:
+            decl_def = pattern_match(['declare', '*?decls'], declaration)
+        except ValueError:
+            raise CompilerError.from_token(
+                declaration[0],
+                'Declaration must be of the form (declare DECLARATIONS)')
 
-            if len(element) != 2:
-                raise CompilerError.from_token(element[0],
-                    'Each declaration must be of the form (IDENTIFIER KIND)')
+        for element in decl_def['decls']:
+            try:
+                var_def = pattern_match(['~name', '?decl'], element)
 
+                identifier = var_def['name']
+                if symbols.has_namespace(identifier):
+                    raise CompilerError.from_token(
+                        declaration[0],
+                        'Declaration identifiers cannot be namespaced')
 
-            if not lexer.is_identifier(element[0]):
-                raise CompilerError.from_token(declaration[0],
-                    'Each declaration must start with an identifier')
+                declaration = self.parse_decl_type(var_def['decl'], identifier)
 
-            identifier = element[0].content
-            if symbols.has_namespace(identifier):
-                raise CompilerError.from_token(declaration[0],
-                    'Declaration identifiers cannot be namespaced')
+                decl_line = element[0].line
+                decl_col = element[0].column
+                self.backend.update_position(decl_line, decl_col)
 
-            declaration = self.parse_decl_type(element[1], identifier)
-
-            decl_line = element[0].line
-            decl_col = element[0].column
-            self.backend.update_position(decl_line, decl_col)
-
-            self.backend.handle_decl(identifier, declaration)
+                self.backend.handle_decl(identifier, declaration)
+            except ValueError:
+                raise CompilerError.from_token(
+                    declaration[0],
+                    'Declaration must be of the form (IDENTIFIER TYPE)')
 
         self.backend.handle_decl_block_end()
 
@@ -220,56 +291,50 @@ class Driver:
         """
         Parses a namespace statement.
         """
-        if len(namespace) != 2:
-            raise CompilerError.from_token(namespace[0],
-                'namespace must take the form (namespace IDENTIFIER)')
-
         self.backend.update_position(namespace[0].line, namespace[0].column)
 
-        if not lexer.is_identifier(namespace[0]):
-            raise CompilerError.from_token(namespace[0],
+        try:
+            var_def = pattern_match(['namespace', '~ident'], namespace)
+
+            if symbols.has_namespace(var_def['ident']):
+                raise CompilerError.from_token(
+                    namespace[0],
+                    'Cannot have namespace in namespace declaration')
+
+            self.backend.handle_namespace(var_def['ident'])
+        except ValueError:
+            raise CompilerError.from_token(
+                namespace[0],
                 'namespace must take the form (namespace IDENTIFIER)')
-
-        ns_name = namespace[1].content
-        if symbols.has_namespace(ns_name):
-            raise CompilerError.from_token(namespace[0],
-                'Cannot have nested namespaces in namespace declaration')
-
-        self.backend.handle_namespace(ns_name)
 
     def process_require(self, require):
         """
         Parses a require statement.
         """
-        if len(require) != 2:
-            raise CompilerError.from_token(require[0],
-                'require must take the form (require STRING)')
-
         self.backend.update_position(require[0].line, require[0].column)
 
-        filename = require[1]
-        if not lexer.is_string(filename):
-            raise CompilerError.from_token(require[0],
-                'require must take the form (require STRING)')
+        try:
+            var_def = pattern_match(['require', '$str'], require)
 
-        filename_text = filename.content.decode('ascii')
-        self.backend.handle_require(filename_text)
+            self.backend.handle_require(var_def['str'].decode('ascii'))
+        except ValueError:
+            raise CompilerError.from_token(
+                require[0],
+                'require must take the form (require STRING)')
 
     def process_export(self, exports):
         """
         Parses an export block.
         """
         self.backend.update_position(exports[0].line, exports[0].column)
-        names = []
 
-        for element in exports[1:]:
-            if not lexer.is_identifier(element):
-                raise CompilerError.from_token(element,
-                    'Each export must be an identifier')
-
-            names.append(element.content)
-
-        self.backend.handle_exports(names)
+        try:
+            var_def = pattern_match(['export', '*~idents'], exports)
+            self.backend.handle_exports(var_def['idents'])
+        except ValueError:
+            raise CompilerError.from_token(
+                exports[0],
+                'export must be of the form (export IDENTIFIER...)')
 
     def parse_expression(self, expr):
         """
@@ -313,178 +378,199 @@ class Driver:
             CHAR
             IDENTIFIER
         """
-        if isinstance(expr, list):
-            if len(expr) == 0:
-                raise CompilerError(self.filename, 0, 0,
-                    'Cannot have a () in an expression')
+        try:
+            var_def = pattern_match(['ref', '?expr'], expr)
 
-            if lexer.is_integer(expr[0]):
-                raise CompilerError.from_token(expr[0],
-                    'Cannot call an integer')
-            elif not lexer.is_identifier(expr[0]):
-                func = self.parse_expression(expr[0])
-                args = tuple(self.parse_expression(arg)
-                        for arg in expr[1:])
+            loc = expr[0].line, expr[0].column
+            ref_expr = self.parse_expression(var_def['expr'])
+            return expressions.Reference(loc, ref_expr)
+        except ValueError:
+            pass
 
-                return expressions.Call(func.loc, func, args)
-            elif expr[0].content == 'ref':
-                if len(expr) != 2:
-                    raise CompilerError.from_token(expr[0],
-                        'ref must be of the form (ref EXPR)')
+        try:
+            var_def = pattern_match(['deref', '?expr'], expr)
 
-                loc = expr[0].line, expr[0].column
-                expr = self.parse_expression(expr[1])
-                return expressions.Reference(loc, expr)
-            elif expr[0].content == 'deref':
-                if len(expr) != 2:
-                    raise CompilerError.from_token(expr[0],
-                        'deref must be of the form (deref EXPR)')
+            loc = expr[0].line, expr[0].column
+            deref_expr = self.parse_expression(var_def['expr'])
+            return expressions.Dereference(loc, deref_expr)
+        except ValueError:
+            pass
 
-                loc = expr[0].line, expr[0].column
-                expr = self.parse_expression(expr[1])
-                return expressions.Dereference(loc, expr)
-            elif expr[0].content == 'cast':
-                if len(expr) != 3:
-                    raise CompilerError.from_token(expr[0],
-                        'cast must be of the form (cast TYPE EXPR)')
+        try:
+            var_def = pattern_match(['cast', '?type', '?expr'], expr)
 
-                loc = expr[0].line, expr[0].column
-                cast_type = self.parse_type(expr[1])
-                expression = self.parse_expression(expr[2])
-                return expressions.Cast(loc, cast_type, expression)
-            elif expr[0].content == 'array':
-                if len(expr) != 3:
-                    raise CompilerError.from_token(expr[0],
-                        'array must be of the form (array EXPR EXPR)')
+            loc = expr[0].line, expr[0].column
+            cast_type = self.parse_type(var_def['type'])
+            cast_expr = self.parse_expression(var_def['expr'])
+            return expressions.Cast(loc, cast_type, cast_expr)
+        except ValueError:
+            pass
 
-                loc = expr[0].line, expr[0].column
-                array = self.parse_expression(expr[1])
-                index = self.parse_expression(expr[2])
-                return expressions.Array(loc, array, index)
-            elif expr[0].content == 'field':
-                if len(expr) < 3:
-                    raise CompilerError.from_token(expr[0],
-                        'field must be of the form (field EXPR IDENTIFIER+)')
+        try:
+            var_def = pattern_match(['array', '?array', '?index'], expr)
 
-                struct = self.parse_expression(expr[1])
+            loc = expr[0].line, expr[0].column
+            array = self.parse_expression(var_def['array'])
+            index = self.parse_expression(var_def['index'])
+            return expressions.Array(loc, array, index)
+        except ValueError:
+            pass
 
-                fields = []
-                for field in expr[2:]:
-                    if not lexer.is_identifier(field):
-                        raise CompilerError.from_token(expr[0],
-                            'field must be of the form (field EXPR IDENTIFIER+)')
+        try:
+            var_def = pattern_match(['field', '?expr', '*~fields'], expr)
 
-                    fields.append(field.content)
+            struct = self.parse_expression(var_def['expr'])
 
-                loc = expr[0].line, expr[0].column
-                return expressions.Field(loc, struct, tuple(fields))
-            elif expr[0].content in ('+', '-', '*', '/', '%'):
-                operator = expr[0].content
-                if len(expr) != 3:
-                    raise CompilerError.from_token(expr[0],
-                        '{op} must be of the form ({op} EXPR EXPR)'.format(op=operator))
+            loc = expr[0].line, expr[0].column
+            return expressions.Field(loc, struct, tuple(var_def['fields']))
+        except ValueError:
+            pass
 
-                loc = expr[0].line, expr[0].column
-                lhs = self.parse_expression(expr[1])
-                rhs = self.parse_expression(expr[2])
-                kind = {
-                    '+': expressions.ARITH_PLUS,
-                    '-': expressions.ARITH_MINUS,
-                    '*': expressions.ARITH_TIMES,
-                    '/': expressions.ARITH_DIVIDE,
-                    '%': expressions.ARITH_MOD,
-                }[operator]
-                return expressions.Arithmetic(loc, kind, lhs, rhs)
-            elif expr[0].content in ('&', '|', '^', '<<', '>>', '>>>'):
-                operator = expr[0].content
-                if len(expr) != 3:
-                    raise CompilerError.from_token(expr[0],
-                        '{op} must be of the form ({op} EXPR EXPR)'.format(op=operator))
+        try:
+            var_def = pattern_match(['~op', '?lhs', '?rhs'], expr)
+            if var_def['op'] not in ('+', '-', '*', '/', '%'):
+                raise ValueError
 
-                loc = expr[0].line, expr[0].column
-                lhs = self.parse_expression(expr[1])
-                rhs = self.parse_expression(expr[2])
-                kind = {
-                    '&': expressions.BitAnd,
-                    '|': expressions.BitOr,
-                    '^': expressions.BitXor,
-                    '<<': expressions.BitShiftLeft,
-                    '>>': lambda lhs, rhs: expressions.BitShiftRight(lhs, rhs, False),
-                    '>>>': lambda lhs, rhs: expressions.BitShiftRight(lhs, rhs, True)
-                }[operator]
-                return kind(loc, lhs, rhs)
-            elif expr[0].content == '~':
-                if len(expr) != 2:
-                    raise CompilerError.from_token(expr[0],
-                        '~ must be of the form (~ EXPRESSION)')
+            loc = expr[0].line, expr[0].column
+            lhs = self.parse_expression(var_def['lhs'])
+            rhs = self.parse_expression(var_def['rhs'])
+            kind = {
+                '+': expressions.ARITH_PLUS,
+                '-': expressions.ARITH_MINUS,
+                '*': expressions.ARITH_TIMES,
+                '/': expressions.ARITH_DIVIDE,
+                '%': expressions.ARITH_MOD,
+            }[var_def['op']]
 
-                loc = expr[0].line, expr[0].column
-                expr = self.parse_expression(expr[1])
-                return expressions.BitNot(loc, expr)
-            elif expr[0].content in ('==', '!=', '<', '>', '<=', '>='):
-                operator = expr[0].content
-                if len(expr) != 3:
-                    raise CompilerError.from_token(expr[0],
-                        '{op} must be of the form ({op} EXPR EXPR)'.format(op=operator))
+            return expressions.Arithmetic(loc, kind, lhs, rhs)
+        except ValueError:
+            pass
 
-                loc = expr[0].line, expr[0].column
-                lhs = self.parse_expression(expr[1])
-                rhs = self.parse_expression(expr[2])
-                kind = {
-                    '==': expressions.CMP_EQ,
-                    '!=': expressions.CMP_NOTEQ,
-                    '<': expressions.CMP_LESS,
-                    '>': expressions.CMP_GREATER,
-                    '<=': expressions.CMP_LESSEQ,
-                    '>=': expressions.CMP_GREATEQ,
-                }[operator]
-                return expressions.Compare(loc, kind, lhs, rhs)
-            elif expr[0].content in ('&&', '||'):
-                operator = expr[0].content
-                if len(expr) != 3:
-                    raise CompilerError.from_token(expr[0],
-                        '{op} must be of the form ({op} EXPR EXPR)'.format(op=operator))
+        try:
+            var_def = pattern_match(['~op', '?lhs', '?rhs'], expr)
+            if var_def['op'] not in ('&', '|', '^', '<<', '>>', '>>>'):
+                raise ValueError
 
-                loc = expr[0].line, expr[0].column
-                lhs = self.parse_expression(expr[1])
-                rhs = self.parse_expression(expr[2])
-                kind = {
-                    '&&': expressions.And,
-                    '||': expressions.Or,
-                }[operator]
-                return kind(loc, lhs, rhs)
-            elif expr[0].content == '!':
-                if len(expr) != 2:
-                    raise CompilerError.from_token(expr[0],
-                        '! must be of the form (! EXPRESSION)')
+            loc = expr[0].line, expr[0].column
+            lhs = self.parse_expression(var_def['lhs'])
+            rhs = self.parse_expression(var_def['rhs'])
+            kind = {
+                '&': expressions.BitAnd,
+                '|': expressions.BitOr,
+                '^': expressions.BitXor,
+                '<<': expressions.BitShiftLeft,
+                '>>': lambda lhs, rhs: expressions.BitShiftRight(lhs, rhs, False),
+                '>>>': lambda lhs, rhs: expressions.BitShiftRight(lhs, rhs, True)
+            }[var_def['op']]
 
-                loc = expr[0].line, expr[0].column
-                expr = self.parse_expression(expr[1])
-                return expressions.Not(loc, expr)
-            elif expr[0].content == 'size-of':
-                if len(expr) != 2:
-                    raise CompilerError.from_token(expr[0],
-                        'size-of must be of the form (size-of TYPE)')
+            return kind(loc, lhs, rhs)
+        except ValueError:
+            pass
 
-                loc = expr[0].line, expr[0].column
-                type_size = self.parse_type(expr[1])
-                return expressions.SizeOf(loc, type_size)
-            else:
-                func = self.parse_expression(expr[0])
-                args = tuple(self.parse_expression(arg)
-                        for arg in expr[1:])
+        try:
+            var_def = pattern_match(['\\~', '?arg'], expr)
 
-                loc = func.loc
-                return expressions.Call(loc, func, args)
-        elif lexer.is_integer(expr):
+            loc = expr[0].line, expr[0].column
+            arg = self.parse_expression(var_def['arg'])
+            return expressions.BitNot(loc, arg)
+        except ValueError:
+            pass
+
+        try:
+            var_def = pattern_match(['~op', '?lhs', '?rhs'], expr)
+            if var_def['op'] not in ('==', '!=', '<', '>', '<=', '>='):
+                raise ValueError
+
+            loc = expr[0].line, expr[0].column
+            lhs = self.parse_expression(var_def['lhs'])
+            rhs = self.parse_expression(var_def['rhs'])
+            kind = {
+                '==': expressions.CMP_EQ,
+                '!=': expressions.CMP_NOTEQ,
+                '<': expressions.CMP_LESS,
+                '>': expressions.CMP_GREATER,
+                '<=': expressions.CMP_LESSEQ,
+                '>=': expressions.CMP_GREATEQ,
+            }[var_def['op']]
+
+            return expressions.Compare(loc, kind, lhs, rhs)
+        except ValueError:
+            pass
+
+        try:
+            var_def = pattern_match(['~op', '?lhs', '?rhs'], expr)
+            if var_def['op'] not in ('&&', '||'):
+                raise ValueError
+
+            loc = expr[0].line, expr[0].column
+            lhs = self.parse_expression(var_def['lhs'])
+            rhs = self.parse_expression(var_def['rhs'])
+            kind = {
+                '&&': expressions.And,
+                '||': expressions.Or,
+            }[var_def['op']]
+
+            return kind(loc, lhs, rhs)
+        except ValueError:
+            pass
+
+        try:
+            var_def = pattern_match(['!', '?arg'], expr)
+
+            loc = expr[0].line, expr[0].column
+            arg = self.parse_expression(var_def['arg'])
+            return expressions.Not(loc, arg)
+        except ValueError:
+            pass
+
+        try:
+            var_def = pattern_match(['size-of', '?type'], expr)
+
+            loc = expr[0].line, expr[0].column
+            type_size = self.parse_type(var_def['type'])
+            return expressions.SizeOf(loc, type_size)
+        except ValueError:
+            pass
+
+        try:
+            var_def = pattern_match(['?func', '*?args'], expr)
+            func = self.parse_expression(expr[0])
+            args = tuple(self.parse_expression(arg)
+                         for arg in var_def['args'])
+
+            return expressions.Call(func.loc, func, args)
+        except ValueError:
+            pass
+
+        try:
+            var_def = pattern_match('%int', expr)
             loc = expr.line, expr.column
-            return expressions.Integer(loc, expr.content)
-        elif lexer.is_char(expr):
+            return expressions.Integer(loc, var_def['int'])
+        except ValueError:
+            pass
+
+        try:
+            var_def = pattern_match('#char', expr)
             loc = expr.line, expr.column
-            return expressions.Char(loc, expr.content)
-        elif lexer.is_identifier(expr):
+            return expressions.Char(loc, var_def['char'])
+        except ValueError:
+            pass
+
+        try:
+            var_def = pattern_match('~ident', expr)
             loc = expr.line, expr.column
-            return expressions.Variable(loc, expr.content)
+            return expressions.Variable(loc, var_def['ident'])
+        except ValueError:
+            pass
+
+        if expr == []:
+            raise CompilerError(self.filename, -1, -1, '() is not an expression')
+        elif isinstance(expr, list):
+            raise CompilerError.from_token(
+                expr[0],
+                'Not an expression: {}', lexer.print_list(expr))
+        else:
+            raise CompilerError.from_token(expr, 'Not an expression')
 
     def process_block(self, block):
         "Processes (block STATEMENT+)"
@@ -502,7 +588,7 @@ class Driver:
         "Processes (set_ ASSIGNABLE EXPRESSION)"
         if len(set_) != 3:
             raise CompilerError.from_token(set_[0],
-                'Set must be of the form (set_ ASSIGNABLE EXPRESSION)')
+                'Set must be of the form (set ASSIGNABLE EXPRESSION)')
 
         assignable = self.parse_expression(set_[1])
         expression = self.parse_expression(set_[2])
@@ -542,38 +628,34 @@ class Driver:
                 raise CompilerError.from_token(switch[0],
                     'Cannot have an additional case after an else')
 
-            if not isinstance(case, list):
-                raise CompilerError.from_token(switch[0],
-                    'Case must be of the form (case EXPRESSION STATEMENT) or (else STATEMENT)')
+            read = False
+            try:
+                var_def = pattern_match(['case', '?cond', '?stmt'], case)
+                read = True
 
-            if len(case) not in (2, 3):
-                raise CompilerError.from_token(switch[0],
-                    'Case must be of the form (case EXPRESSION STATEMENT) or (else STATEMENT')
-
-            if not lexer.is_identifier(case[0]):
-                raise CompilerError.from_token(switch[0],
-                    'Case must be of the form (case EXPRESSION STATEMENT) or (else STATEMENT)')
-
-            if case[0].content == 'case':
-                if len(case) != 3:
-                    raise CompilerError.from_token(switch[0],
-                        'Case must be of the form (case EXPRESSION STATEMENT)')
-
-                cond = self.parse_expression(case[1])
+                cond = self.parse_expression(var_def['cond'])
                 self.backend.handle_case_start(cond)
 
-                body = self.process_statement(case[2])
+                body = self.process_statement(var_def['stmt'])
                 self.backend.handle_case_end()
-            elif case[0].content == 'else':
-                if len(case) != 2:
-                    raise CompilerError.from_token(switch[0],
-                        'Else must be of the form (else STATEMENT)')
-                                
+            except ValueError:
+                pass
+
+            try:
+                var_def = pattern_match(['else', '?stmt'], case)
+                read = True
                 else_read = True
+
                 self.backend.handle_case_start(None)
-                body = self.process_statement(case[1])
-                
-                self.backend.handle_case_end() 
+                body = self.process_statement(var_def['stmt'])
+
+                self.backend.handle_case_end()
+            except ValueError:
+                pass
+
+            if not read:
+                raise CompilerError.from_token(switch[0],
+                    'Case must be of the form (case EXPRESSION STATEMENT) or (else STATEMENT)')
 
         self.backend.handle_switch_end()
 
@@ -669,7 +751,7 @@ class Driver:
         raise CompilerError.from_token(error[0],
                 'User-generated compiler error: {}',
                 error[1].content.decode('ascii'))
-            
+
     def process_statement(self, statement):
         """
         Processes a statement.
@@ -709,7 +791,7 @@ class Driver:
             elif not lexer.is_identifier(statement[0]):
                 # This is actually guaranteed to be invalid, but it's easier
                 # to let the expression parser take care of raising for us
-                return self.parse_expression(statement)
+                self.parse_expression(statement)
             else:
                 func = {
                     'block': self.process_block,
@@ -741,44 +823,29 @@ class Driver:
              DECLARATION
              STATEMENT)
         """
-        if len(definition) != 5:
+        try:
+            def_line = definition[0].line
+            def_col = definition[0].column
+            self.backend.update_position(def_line, def_col)
+
+            var_def = pattern_match(
+                ['define', '~name', ['*~params'], '?decl', '?body'],
+                definition)
+
+            self.backend.handle_func_def_start(var_def['name'], var_def['params'])
+
+            # Ensure that we got a declaration that actually looks like a
+            # declare block. This is done separately so that we can refer to the
+            # whole decl block (via var_def['decl']) which is what handle_declaration
+            # expects
+            pattern_match(['declare', '*?decls'], var_def['decl'])
+
+            self.process_declaration(var_def['decl'])
+            self.process_statement(var_def['body'])
+            self.backend.handle_func_def_end()
+        except ValueError:
             raise CompilerError.from_token(definition[0],
                 'Function definition must be of the form (define NAME (PARAMS) DECLARE BODY)')
-
-        name = definition[1]
-        if not lexer.is_identifier(name):
-            raise CompilerError.from_token(definition[0],
-                'Function definition does not have a valid name')
-
-        if symbols.has_namespace(name.content):
-            raise CompilerError.from_token(definition[0],
-                'Function definition cannot have a namespace')
-
-        params = definition[2]
-        if not isinstance(params, list):
-            raise CompilerError.from_token(definition[0],
-                'Function definition require a parameter list')
-
-        params = [param.content for param in params]
-        self.backend.handle_func_def_start(name.content, params)
-
-        declaration = definition[3]
-        if not isinstance(declaration, list):
-            raise CompilerError.from_token(definition[3],
-                'Function definition requires a declaration block')
-
-        if (isinstance(declaration[0], list) or
-                declaration[0].type != lexer.IDENTIFIER or
-                declaration[0].content != 'declare'):
-            raise CompilerError.from_token(definition[0],
-                'Function definition requires a declaration block')
-
-        self.process_declaration(declaration)
-
-        body = definition[4]
-        self.process_statement(body)
-
-        self.backend.handle_func_def_end()
 
     def process_assembly_definition(self, definition):
         """
@@ -787,26 +854,18 @@ class Driver:
             (assemble IDENTIFIER
              STRING)
         """
-        if len(definition) != 3:
+        try:
+            asm_line = definition[0].line
+            asm_col = definition[0].column
+            self.backend.update_position(asm_line, asm_col)
+
+            var_def = pattern_match(['assemble', '~name', '$code'], definition)
+
+            asm_text = var_def['code'].decode('ascii')
+            self.backend.handle_assembly(var_def['name'], asm_text)
+        except ValueError:
             raise CompilerError.from_token(definition[0],
                 'Inline assembly must be of the form (assemble NAME STR)')
-
-        name = definition[1]
-        if not lexer.is_identifier(name):
-            raise CompilerError.from_token(definition[0],
-                'Inline assembly does not have a valid name')
-
-        assembly = definition[2]
-        if not lexer.is_string(assembly):
-            raise CompilerError.from_token(definition[0],
-                'Inline assembly does not have valid code')
-
-        asm_line = definition[0].line
-        asm_col = definition[0].column
-        self.backend.update_position(asm_line, asm_col)
-
-        asm_text = assembly.content.decode('ascii')
-        self.backend.handle_assembly(name.content, asm_text)
 
     def process_toplevel(self, toplevel):
         """
